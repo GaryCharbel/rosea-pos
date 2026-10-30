@@ -46,3 +46,8 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# stray npm artifacts (do not belong in the Flutter repo)
+node_modules/
+package-lock.json
+package.json
