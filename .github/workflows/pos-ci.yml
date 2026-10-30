@@ -45,6 +45,12 @@ jobs:
         with:
           channel: stable
       - run: flutter pub get
+      - name: Pre-install Android NDK (retry — dodges transient corrupt downloads)
+        run: |
+          for i in 1 2 3; do
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" && break
+            echo "::warning::NDK install attempt $i failed; retrying"; sleep 5
+          done
       - run: flutter build apk --debug
       - name: Notify Discord
         if: always()
