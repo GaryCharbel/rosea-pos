@@ -68,6 +68,32 @@ flutter test --dart-define-from-file=env/test.json
 
 CI on every PR: `analyze` + `test` + verify **both** targets build (`flutter build windows` + `flutter build apk`) — red blocks the merge. On release, CI builds a **Windows zip + an Android APK** and uploads both to the MEGA folder.
 
+## 📦 Releasing
+
+Cut a release by pushing an **annotated** version tag — the tag message becomes the changelog line:
+
+```bash
+git tag -a v1.0.2 -m "added customer support"
+git push origin v1.0.2
+```
+
+CI then:
+1. builds the **Android APK** + **Windows zip**,
+2. creates the MEGA folder if it doesn't exist,
+3. **deletes the previous version** (only the latest build is kept),
+4. uploads the new build, and
+5. **bumps `CHANGELOG.txt`** on MEGA — a running history, e.g.:
+
+```
+Rosea POS — Release History
+===========================
+
+v1.0.1  —  added discounts          (2026-10-30)
+v1.0.2  —  added customer support   (2026-11-05)
+```
+
+A Discord embed reports the published release. (`CHANGELOG.txt` persists across releases; the build artifacts don't.)
+
 ## 📏 Ground rules
 
 Never commit to `main` · nothing merges without review · CI gates every PR · **correctness → reliability → speed** · zero N+1 · never let the UI look flat. Full set → [`CLAUDE.md`](CLAUDE.md).

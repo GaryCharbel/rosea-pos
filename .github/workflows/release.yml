@@ -1,6 +1,8 @@
 name: release
 
 # Release artifacts are built from a version tag (never from a push to main).
+# Tag with a message — that message becomes the changelog line, e.g.:
+#   git tag -a v1.0.2 -m "added customer support" && git push origin v1.0.2
 # Each job posts its own Discord embed; Discord posts run on Ubuntu.
 on:
   push:
@@ -65,30 +67,73 @@ jobs:
           status: ${{ needs.windows.result }}
 
   publish-to-mega:
-    name: Upload to MEGA
+    name: Publish to MEGA
     needs: [android, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need the annotated tag message for the changelog
       - uses: actions/download-artifact@v4
         with:
           path: dist
-      - name: Upload both artifacts to the MEGA folder
+
+      - name: Publish build + bump CHANGELOG on MEGA
         env:
           MEGA_USER: ${{ secrets.MEGA_USER }}
           MEGA_PASS: ${{ secrets.MEGA_PASS }}
           MEGA_FOLDER: ${{ secrets.MEGA_FOLDER }}
+          VERSION: ${{ github.ref_name }}
         run: |
           if [ -z "$MEGA_USER" ] || [ -z "$MEGA_PASS" ]; then
             echo "::warning::MEGA secrets not set — skipping upload. Artifacts are attached to the run."
             exit 0
           fi
           sudo apt-get update && sudo apt-get install -y megatools
+
+          # creds via config file (keeps them off the process list)
+          printf '[Login]\nUsername = %s\nPassword = %s\n' "$MEGA_USER" "$MEGA_PASS" > ~/.megarc
+          chmod 600 ~/.megarc
+
           dest="${MEGA_FOLDER:-/Root/rosea-pos}"
-          find dist -type f \( -name '*.apk' -o -name '*-windows.zip' \) -print0 | while IFS= read -r -d '' f; do
-            echo "Uploading $f -> $dest/"
-            megaput --username "$MEGA_USER" --password "$MEGA_PASS" --path "$dest/" "$f"
+
+          # 1) Create the folder if it doesn't exist (create each path segment).
+          cur=""
+          IFS='/' read -ra parts <<< "${dest#/}"
+          for seg in "${parts[@]}"; do
+            cur="$cur/$seg"
+            megamkdir "$cur" 2>/dev/null || true
           done
+
+          # 2) Preserve history: pull the existing CHANGELOG.txt down before we wipe.
+          rm -f CHANGELOG.txt
+          megaget "$dest/CHANGELOG.txt" 2>/dev/null || true
+          if [ ! -f CHANGELOG.txt ]; then
+            printf 'Rosea POS — Release History\n===========================\n\n' > CHANGELOG.txt
+          fi
+
+          # 3) Delete the previous version (build + old changelog) — keep only latest.
+          for p in $(megals "$dest" 2>/dev/null); do
+            case "$p" in
+              *.apk|*.zip|*/CHANGELOG.txt) megarm "$p" 2>/dev/null || true ;;
+            esac
+          done
+
+          # 4) Append this version's entry. Notes come from the annotated tag message.
+          NOTE="$(git for-each-ref "refs/tags/$VERSION" --format='%(contents:subject)' 2>/dev/null)"
+          [ -z "$NOTE" ] && NOTE="$(git log -1 --pretty=%s)"
+          printf '%s  —  %s  (%s)\n' "$VERSION" "$NOTE" "$(date -u +%Y-%m-%d)" >> CHANGELOG.txt
+          echo "Changelog now:"; cat CHANGELOG.txt
+
+          # 5) Upload the new build + updated changelog.
+          APK="$(find dist -name '*.apk' | head -1)"
+          ZIP="$(find dist -name '*-windows.zip' | head -1)"
+          megaput --path "$dest/" "$APK"
+          megaput --path "$dest/" "$ZIP"
+          megaput --path "$dest/" CHANGELOG.txt
+
+          rm -f ~/.megarc
+
       - name: Notify Discord
         if: always()
         uses: ./.github/actions/discord-notify
@@ -96,4 +141,4 @@ jobs:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
           job: "Release ${{ github.ref_name }} → MEGA"
           status: ${{ job.status }}
-          details: "🚀 **Rosea POS ${{ github.ref_name }}** published to MEGA — `rosea-pos-${{ github.ref_name }}.apk` + `rosea-pos-${{ github.ref_name }}-windows.zip`."
+          details: "🚀 **Rosea POS ${{ github.ref_name }}** published to MEGA (previous build replaced; `CHANGELOG.txt` bumped) — `rosea-pos-${{ github.ref_name }}.apk` + `rosea-pos-${{ github.ref_name }}-windows.zip`."
