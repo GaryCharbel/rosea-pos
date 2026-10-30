@@ -1,10 +1,14 @@
 name: pos-ci
 
 on:
+  pull_request: # every PR (into develop or main)
   push:
-  pull_request:
+    branches: [develop] # and pushes to the integration branch
+  workflow_dispatch:
 
-# Every PR/push: analyze, test, and verify BOTH targets build. Red = no merge.
+# Runs on develop + all PRs. Not on main pushes (code reaching main already
+# passed on develop; main gets notifications + deploy, not a rebuild).
+# analyze, test, and verify BOTH targets build. Red = no merge.
 # Each job posts its own large Discord embed (pass/fail GIF). All Discord posts
 # run on Ubuntu (Windows bash + curl path handling is unreliable), so the
 # Windows build is reported by a small companion job.
