@@ -1,6 +1,7 @@
 name: release
 
 # Release artifacts are built from a version tag (never from a push to main).
+# Each job posts its own Discord embed; Discord posts run on Ubuntu.
 on:
   push:
     tags:
@@ -26,6 +27,13 @@ jobs:
         with:
           name: apk
           path: rosea-pos-*.apk
+      - name: Notify Discord
+        if: always()
+        uses: ./.github/actions/discord-notify
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          job: "Android APK ${{ github.ref_name }}"
+          status: ${{ job.status }}
 
   windows:
     name: Windows build
@@ -43,11 +51,25 @@ jobs:
           name: windows
           path: rosea-pos-*-windows.zip
 
+  notify-windows:
+    name: notify · windows build
+    needs: windows
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/discord-notify
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          job: "Windows build ${{ github.ref_name }}"
+          status: ${{ needs.windows.result }}
+
   publish-to-mega:
     name: Upload to MEGA
     needs: [android, windows]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -58,7 +80,7 @@ jobs:
           MEGA_FOLDER: ${{ secrets.MEGA_FOLDER }}
         run: |
           if [ -z "$MEGA_USER" ] || [ -z "$MEGA_PASS" ]; then
-            echo "::warning::MEGA_USER/MEGA_PASS secrets not set — skipping upload. Artifacts are attached to the run."
+            echo "::warning::MEGA secrets not set — skipping upload. Artifacts are attached to the run."
             exit 0
           fi
           sudo apt-get update && sudo apt-get install -y megatools
@@ -67,3 +89,11 @@ jobs:
             echo "Uploading $f -> $dest/"
             megaput --username "$MEGA_USER" --password "$MEGA_PASS" --path "$dest/" "$f"
           done
+      - name: Notify Discord
+        if: always()
+        uses: ./.github/actions/discord-notify
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          job: "Release ${{ github.ref_name }} → MEGA"
+          status: ${{ job.status }}
+          details: "🚀 **Rosea POS ${{ github.ref_name }}** published to MEGA — `rosea-pos-${{ github.ref_name }}.apk` + `rosea-pos-${{ github.ref_name }}-windows.zip`."

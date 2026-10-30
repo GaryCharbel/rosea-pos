@@ -5,6 +5,9 @@ on:
   pull_request:
 
 # Every PR/push: analyze, test, and verify BOTH targets build. Red = no merge.
+# Each job posts its own large Discord embed (pass/fail GIF). All Discord posts
+# run on Ubuntu (Windows bash + curl path handling is unreliable), so the
+# Windows build is reported by a small companion job.
 jobs:
   analyze-test:
     name: analyze · test
@@ -17,6 +20,13 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test --dart-define-from-file=env/test.json
+      - name: Notify Discord
+        if: always()
+        uses: ./.github/actions/discord-notify
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          job: "Analyze & tests"
+          status: ${{ job.status }}
 
   build-android:
     name: build apk
@@ -32,6 +42,13 @@ jobs:
           channel: stable
       - run: flutter pub get
       - run: flutter build apk --debug
+      - name: Notify Discord
+        if: always()
+        uses: ./.github/actions/discord-notify
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          job: "Android build"
+          status: ${{ job.status }}
 
   build-windows:
     name: build windows
@@ -43,3 +60,17 @@ jobs:
           channel: stable
       - run: flutter pub get
       - run: flutter build windows --debug
+
+  notify-windows:
+    name: notify · windows build
+    needs: build-windows
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Notify Discord
+        uses: ./.github/actions/discord-notify
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          job: "Windows build"
+          status: ${{ needs.build-windows.result }}
