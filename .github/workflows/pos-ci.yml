@@ -1,0 +1,86 @@
+name: pos-ci
+
+on:
+  pull_request: # every PR (into develop or main)
+  push:
+    branches: [develop] # and pushes to the integration branch
+  workflow_dispatch:
+
+# Runs on develop + all PRs. Not on main pushes (code reaching main already
+# passed on develop; main gets notifications + deploy, not a rebuild).
+# analyze, test, and verify BOTH targets build. Red = no merge.
+# Each job posts its own large Discord embed (pass/fail GIF). All Discord posts
+# run on Ubuntu (Windows bash + curl path handling is unreliable), so the
+# Windows build is reported by a small companion job.
+jobs:
+  analyze-test:
+    name: analyze · test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test --dart-define-from-file=env/test.json
+      - name: Notify Discord
+        if: always()
+        uses: ./.github/actions/discord-notify
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          job: "Analyze & tests"
+          status: ${{ job.status }}
+
+  build-android:
+    name: build apk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - name: Pre-install Android NDK (retry — dodges transient corrupt downloads)
+        run: |
+          for i in 1 2 3; do
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.2.13676358" && break
+            echo "::warning::NDK install attempt $i failed; retrying"; sleep 5
+          done
+      - run: flutter build apk --debug
+      - name: Notify Discord
+        if: always()
+        uses: ./.github/actions/discord-notify
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          job: "Android build"
+          status: ${{ job.status }}
+
+  build-windows:
+    name: build windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter build windows --debug
+
+  notify-windows:
+    name: notify · windows build
+    needs: build-windows
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Notify Discord
+        uses: ./.github/actions/discord-notify
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          job: "Windows build"
+          status: ${{ needs.build-windows.result }}

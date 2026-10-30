@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="340" viewBox="0 0 1280 340" role="img" aria-label="Rosea POS">
+  <defs>
+    <radialGradient id="bg" cx="30%" cy="22%" r="110%">
+      <stop offset="0" stop-color="#1A1218"/>
+      <stop offset="0.55" stop-color="#0A0709"/>
+      <stop offset="1" stop-color="#050306"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7f2ef"/>
+      <stop offset="0.45" stop-color="#f0d9c4"/>
+      <stop offset="1" stop-color="#c9a24b"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b76e79"/>
+      <stop offset="1" stop-color="#c9a24b"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="340" fill="url(#bg)"/>
+  <rect x="26" y="26" width="1228" height="288" fill="none" stroke="#f5edf1" stroke-opacity="0.14"/>
+  <text x="1180" y="400" font-family="Georgia, serif" font-size="520" fill="#ED3D8C" opacity="0.06" text-anchor="end">✦</text>
+
+  <g transform="translate(96,96)">
+    <circle cx="34" cy="26" r="34" fill="url(#mark)"/>
+    <text x="34" y="40" font-family="Georgia, serif" font-size="34" fill="#160d13" text-anchor="middle">✦</text>
+    <text x="92" y="40" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="18" letter-spacing="6" fill="#ED3D8C">POINT&#160;OF&#160;SALE</text>
+  </g>
+
+  <text x="92" y="236" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="128" fill="url(#gold)">Rosea <tspan fill="#ED3D8C">POS</tspan></text>
+  <text x="100" y="292" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="26" fill="#e8dde2">Flutter&#160;&#160;·&#160;&#160;Windows + Android&#160;&#160;·&#160;&#160;per-line commissions&#160;&#160;·&#160;&#160;offline-tolerant</text>
+
+  <rect x="92" y="316" width="300" height="3" rx="1.5" fill="url(#mark)"/>
+</svg>
