@@ -1,0 +1,3 @@
+# Only the value-free template is committed; real configs stay local.
+*.json
+!test.json
