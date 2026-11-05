@@ -26,13 +26,14 @@ final class UnexpectedError extends AppError {
 /// non-leaky guidance; everything else becomes an actionable connectivity message.
 AppError mapAuthError(Object error) {
   if (error is AuthException) {
-    final int? status = error is AuthApiException ? error.statusCode : null;
+    // AuthApiException.statusCode is a String? in this supabase_flutter version.
+    final String? status = error is AuthApiException ? error.statusCode : null;
     final String m = error.message.toLowerCase();
 
-    if (status == 429 || m.contains('too many')) {
+    if (status == '429' || m.contains('too many')) {
       return const AuthError('Too many sign-in attempts. Wait a minute and try again.');
     }
-    if (status == 400 || m.contains('invalid login') || m.contains('credentials')) {
+    if (status == '400' || m.contains('invalid login') || m.contains('credentials')) {
       return const AuthError('Email or password is incorrect. Check them and try again.');
     }
     return AuthError('Could not sign in: ${error.message}');
