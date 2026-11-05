@@ -35,6 +35,10 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  # Supabase client (auth + Postgres + realtime). PKCE is the default auth flow.
+  # App uses the anon key + the signed-in user's JWT, gated by RLS. No service_role key.
+  supabase_flutter: ^2.5.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
