@@ -17,10 +17,16 @@ void main() {
       expect(e.message.toLowerCase(), contains('wait'));
     });
 
-    test('a non-auth failure -> actionable UnexpectedError (connectivity)', () {
-      final e = mapAuthError(Exception('socket closed'));
-      expect(e, isA<UnexpectedError>());
+    test('a transport failure -> actionable NetworkError (connectivity)', () {
+      final e = mapAuthError(Exception('SocketException: Failed host lookup: db.supabase.co'));
+      expect(e, isA<NetworkError>());
       expect(e.message.toLowerCase(), contains('connection'));
+    });
+
+    test('an unrecognised failure -> actionable UnexpectedError (not bare)', () {
+      final e = mapAuthError(StateError('null check operator used on a null value'));
+      expect(e, isA<UnexpectedError>());
+      expect(e.message.toLowerCase(), contains('tell the owner'));
     });
 
     test('an unknown AuthException still surfaces its message, actionably', () {

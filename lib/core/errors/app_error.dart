@@ -1,3 +1,5 @@
+import 'dart:async' show TimeoutException;
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// A user-facing error that always carries an *actionable* message
@@ -14,10 +16,29 @@ final class AuthError extends AppError {
   const AuthError(super.message);
 }
 
-/// Anything we did not specifically recognise (treated as a connectivity-ish
-/// failure, with an actionable next step rather than a bare "error").
+/// A connectivity problem (offline, DNS, timeout) — the counter can retry.
+final class NetworkError extends AppError {
+  const NetworkError(super.message);
+}
+
+/// A failure we did not recognise. Still actionable — not a bare "error".
 final class UnexpectedError extends AppError {
   const UnexpectedError(super.message);
+}
+
+/// Heuristic for connectivity failures, without importing `dart:io` (keeps this
+/// portable). Matches the common transport errors by type and by text.
+bool _looksLikeNetwork(Object error) {
+  if (error is TimeoutException) return true;
+  final s = error.toString().toLowerCase();
+  return s.contains('socketexception') ||
+      s.contains('clientexception') ||
+      s.contains('failed host lookup') ||
+      s.contains('connection refused') ||
+      s.contains('connection closed') ||
+      s.contains('network is unreachable') ||
+      s.contains('timed out') ||
+      s.contains('timeout');
 }
 
 /// Maps a thrown error from a sign-in call into an [AppError] with actionable copy.
@@ -38,7 +59,12 @@ AppError mapAuthError(Object error) {
     }
     return AuthError('Could not sign in: ${error.message}');
   }
+  if (_looksLikeNetwork(error)) {
+    return const NetworkError(
+      'Could not reach Rosea. Check your internet connection and try again.',
+    );
+  }
   return const UnexpectedError(
-    'Could not reach Rosea. Check your internet connection and try again.',
+    'Something went wrong signing in. Try again — if it keeps happening, tell the owner.',
   );
 }
