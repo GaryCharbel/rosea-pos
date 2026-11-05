@@ -6,6 +6,7 @@ import 'features/auth/session_controller.dart';
 import 'features/auth/ui/login_screen.dart';
 import 'features/shell/ui/home_screen.dart';
 import 'features/shell/ui/splash_screen.dart';
+import 'features/staff/ui/staff_switch_screen.dart';
 
 /// App router. Redirects between `/login` and the shell based on the session, and
 /// re-runs the redirect whenever the session changes (via [refreshListenable]).
@@ -21,6 +22,7 @@ final routerProvider = Provider<GoRouter>((Ref ref) {
       GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
+      GoRoute(path: '/performer', builder: (_, __) => const StaffSwitchScreen()),
     ],
     redirect: (_, GoRouterState state) {
       final SessionState auth = ref.read(sessionProvider);
