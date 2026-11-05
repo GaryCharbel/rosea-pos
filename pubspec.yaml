@@ -39,6 +39,12 @@ dependencies:
   # App uses the anon key + the signed-in user's JWT, gated by RLS. No service_role key.
   supabase_flutter: ^2.5.0
 
+  # State management (sealed auth state, providers overridable in tests).
+  flutter_riverpod: ^2.5.1
+
+  # Declarative routing with a session-based redirect.
+  go_router: ^14.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
