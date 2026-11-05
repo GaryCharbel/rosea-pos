@@ -45,18 +45,33 @@ final class Authenticated extends SessionState {
 /// fast path can replace that round-trip.
 class SessionController extends Notifier<SessionState> {
   StreamSubscription<AuthState>? _sub;
+  int _gen = 0; // guards against a stale async resolve overwriting a newer state
 
   SupabaseClient get _client => Supabase.instance.client;
 
   @override
   SessionState build() {
-    _sub = _client.auth.onAuthStateChange.listen((data) => _resolve(data.session));
+    // onAuthStateChange emits an `initialSession` event on subscribe, so the
+    // persisted session is resolved via the stream (no separate duplicate read).
+    // Events that don't change the role (tokenRefreshed, etc.) are skipped.
+    _sub = _client.auth.onAuthStateChange.listen((data) {
+      switch (data.event) {
+        case AuthChangeEvent.signedIn:
+        case AuthChangeEvent.initialSession:
+        case AuthChangeEvent.userUpdated:
+          _resolve(data.session);
+        case AuthChangeEvent.signedOut:
+          _resolve(null);
+        default:
+          break;
+      }
+    });
     ref.onDispose(() => _sub?.cancel());
-    _resolve(_client.auth.currentSession); // resolve any persisted session
     return const SessionLoading();
   }
 
   Future<void> _resolve(Session? session) async {
+    final int gen = ++_gen;
     if (session == null) {
       state = const Unauthenticated();
       return;
@@ -67,6 +82,7 @@ class SessionController extends Notifier<SessionState> {
           .select('role, staff_id, full_name')
           .eq('id', session.user.id)
           .maybeSingle();
+      if (gen != _gen) return; // a newer auth change superseded this resolve
       state = Authenticated(
         userId: session.user.id,
         role: (row?['role'] as String?) ?? 'client',
@@ -74,6 +90,7 @@ class SessionController extends Notifier<SessionState> {
         fullName: row?['full_name'] as String?,
       );
     } catch (_) {
+      if (gen != _gen) return;
       // Signed in but the profile read failed; treat as a plain client for now.
       state = Authenticated(userId: session.user.id, role: 'client');
     }

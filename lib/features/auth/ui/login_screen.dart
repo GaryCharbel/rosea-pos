@@ -93,9 +93,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   if (_error != null) ...<Widget>[
                     const SizedBox(height: 16),
-                    Text(
-                      _error!,
-                      style: const TextStyle(color: Color(0xFFFF6B8A), height: 1.3),
+                    Semantics(
+                      liveRegion: true, // screen readers announce the sign-in error
+                      child: Text(
+                        _error!,
+                        style: const TextStyle(color: Color(0xFFFF6B8A), height: 1.3),
+                      ),
                     ),
                   ],
                   const SizedBox(height: 24),
