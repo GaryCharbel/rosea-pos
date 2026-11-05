@@ -26,13 +26,25 @@ class StaffSwitchScreen extends ConsumerWidget {
         loading: () => const Center(
           child: CircularProgressIndicator(color: Color(0xFFED3D8C)),
         ),
-        error: (Object e, _) => const Center(
+        error: (Object e, _) => Center(
           child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Text(
-              "Couldn't load the team. Check your connection and try again.",
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFFB8A9B0)),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const Text(
+                  "Couldn't load the team. Check your connection and try again.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Color(0xFFB8A9B0)),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () => ref.invalidate(staffPublicProvider),
+                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFFED3D8C)),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Try again'),
+                ),
+              ],
             ),
           ),
         ),

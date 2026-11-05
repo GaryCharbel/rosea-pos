@@ -19,7 +19,19 @@ final staffPublicProvider = FutureProvider<List<StaffMember>>((ref) async {
 /// (Phase 4); this is the default chosen from the picker.
 class ActiveStaffController extends Notifier<StaffMember?> {
   @override
-  StaffMember? build() => null;
+  StaffMember? build() {
+    // Reconcile against the active set: if the selected performer leaves it (e.g.
+    // deactivated in the backoffice mid-shift), drop the selection so new lines
+    // can't be credited to an inactive staffer. Equality is by id.
+    ref.listen<AsyncValue<List<StaffMember>>>(staffPublicProvider, (_, next) {
+      final StaffMember? current = state;
+      final List<StaffMember>? list = next.valueOrNull;
+      if (current != null && list != null && !list.contains(current)) {
+        state = null;
+      }
+    });
+    return null;
+  }
 
   void select(StaffMember staff) => state = staff;
 
