@@ -1,51 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-void main() {
-  runApp(const RoseaPosApp());
+import 'core/supabase/supabase_init.dart';
+import 'env.dart';
+import 'router.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  Env.assertConfigured(); // fail fast with an actionable message if config is missing
+  await initSupabase();
+  runApp(const ProviderScope(child: RoseaPosApp()));
 }
 
-/// Placeholder shell for the Rosea POS. Real screens arrive in Stage 1.
-class RoseaPosApp extends StatelessWidget {
+/// Root of the Rosea POS. Dark, high-contrast (never flat/washed-out). Routing +
+/// the login/shell redirect live in [routerProvider].
+class RoseaPosApp extends ConsumerWidget {
   const RoseaPosApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(routerProvider);
+    return MaterialApp.router(
       title: 'Rosea POS',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(useMaterial3: true),
-      home: const _Placeholder(),
-    );
-  }
-}
-
-class _Placeholder extends StatelessWidget {
-  const _Placeholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFF0C0A0F),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Text(
-              'Rosea POS',
-              style: TextStyle(
-                fontSize: 52,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFFED3D8C),
-              ),
-            ),
-            SizedBox(height: 12),
-            Text(
-              'Point of Sale — scaffolding',
-              style: TextStyle(fontSize: 18, color: Color(0xFFB8A9B0)),
-            ),
-          ],
-        ),
+      theme: ThemeData.dark(useMaterial3: true).copyWith(
+        scaffoldBackgroundColor: const Color(0xFF0C0A0F),
       ),
+      routerConfig: router,
     );
   }
 }
