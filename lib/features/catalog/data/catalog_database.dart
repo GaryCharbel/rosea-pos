@@ -53,4 +53,18 @@ class CatalogDatabase extends _$CatalogDatabase {
 
   @override
   int get schemaVersion => 1;
+
+  /// This DB is a disposable cache — every row is re-fetchable from the server via
+  /// CatalogRepository.sync(). So on any schema-version bump we drop and recreate all
+  /// tables rather than hand-writing migrations (and, crucially, rather than crashing
+  /// an existing install on open). The next sync repopulates it.
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onUpgrade: (Migrator m, int from, int to) async {
+          for (final table in allTables) {
+            await m.deleteTable(table.actualTableName);
+          }
+          await m.createAll();
+        },
+      );
 }

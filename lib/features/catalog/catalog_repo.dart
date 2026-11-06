@@ -210,8 +210,10 @@ class CatalogSyncController extends Notifier<SyncStatus> {
     try {
       await ref.read(catalogRepositoryProvider).sync();
       state = const SyncIdle();
-    } catch (_) {
-      // Keep showing the cached catalog; tell the user what happened + what to do.
+    } on Exception catch (_) {
+      // Only expected runtime failures (offline, transient server, RLS) degrade
+      // gracefully to the cached copy. A programming Error (bad cast, bad query) is
+      // NOT caught here — it surfaces instead of hiding behind "check your connection".
       state = const SyncFailed(
         "Couldn't refresh the menu — showing the last saved copy. "
         'Check your connection and tap retry.',

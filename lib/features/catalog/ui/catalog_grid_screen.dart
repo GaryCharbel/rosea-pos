@@ -175,33 +175,41 @@ class _ItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: _card,
-      elevation: 3,
-      shadowColor: Colors.black,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
+    return Semantics(
+      button: true,
+      label: '${item.name}, ${formatCents(item.priceCents)}',
+      child: Material(
+        color: _card,
+        elevation: 3,
+        shadowColor: Colors.black,
         borderRadius: BorderRadius.circular(14),
-        child: Container(
-          width: 168,
-          height: 108,
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              Text(
-                item.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: _ink, fontWeight: FontWeight.w700, fontSize: 15),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          // The combined label above is what a screen reader announces; don't also
+          // read the two inner texts separately.
+          child: ExcludeSemantics(
+            child: Container(
+              width: 168,
+              height: 108,
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Text(
+                    item.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: _ink, fontWeight: FontWeight.w700, fontSize: 15),
+                  ),
+                  Text(
+                    formatCents(item.priceCents),
+                    style: const TextStyle(color: _pink, fontWeight: FontWeight.w800, fontSize: 18),
+                  ),
+                ],
               ),
-              Text(
-                formatCents(item.priceCents),
-                style: const TextStyle(color: _pink, fontWeight: FontWeight.w800, fontSize: 18),
-              ),
-            ],
+            ),
           ),
         ),
       ),
