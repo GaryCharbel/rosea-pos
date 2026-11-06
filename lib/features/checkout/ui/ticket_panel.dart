@@ -185,25 +185,32 @@ class _LineTile extends ConsumerWidget {
             Row(
               children: <Widget>[
                 // performer chip — tap to reassign who is credited for this line
-                InkWell(
-                  borderRadius: BorderRadius.circular(999),
-                  onTap: () => _pickPerformer(context, ref),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2A1420),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: _pink.withValues(alpha: 0.5)),
+                Flexible(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(999),
+                    onTap: () => _pickPerformer(context, ref),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2A1420),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: _pink.withValues(alpha: 0.5)),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: <Widget>[
+                        const Icon(Icons.person, size: 14, color: _pink),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(line.performerName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: _ink, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                        ),
+                      ]),
                     ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: <Widget>[
-                      const Icon(Icons.person, size: 14, color: _pink),
-                      const SizedBox(width: 5),
-                      Text(line.performerName,
-                          style: const TextStyle(color: _ink, fontSize: 12.5, fontWeight: FontWeight.w700)),
-                    ]),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 _qtyStepper(ctrl),
               ],
             ),
@@ -265,42 +272,13 @@ class _LineTile extends ConsumerWidget {
   }
 
   Future<void> _pickPerformer(BuildContext context, WidgetRef ref) async {
-    final staffAsync = ref.read(staffPublicProvider);
-    final staff = staffAsync.valueOrNull ?? const <StaffMember>[];
-    if (staff.isEmpty) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(
-          backgroundColor: _card,
-          content: Text('No staff loaded yet. Open the performer screen first.',
-              style: TextStyle(color: _ink)),
-        ));
-      return;
-    }
+    // The sheet itself watches staff_public, so it shows a spinner while the list
+    // loads (cold) and actionable copy if it can't load — instead of silently
+    // reading a not-yet-loaded value.
     final chosen = await showModalBottomSheet<StaffMember>(
       context: context,
       backgroundColor: _panel,
-      builder: (ctx) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: <Widget>[
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 14, 16, 6),
-              child: Text('Who performed this?',
-                  style: TextStyle(color: _ink, fontWeight: FontWeight.w800, fontSize: 16)),
-            ),
-            for (final s in staff)
-              ListTile(
-                leading: const Icon(Icons.person, color: _pink),
-                title: Text(s.name, style: const TextStyle(color: _ink)),
-                trailing: s.id == line.performerStaffId
-                    ? const Icon(Icons.check_circle, color: _pink)
-                    : null,
-                onTap: () => Navigator.of(ctx).pop(s),
-              ),
-          ],
-        ),
-      ),
+      builder: (ctx) => _PerformerSheet(currentId: line.performerStaffId),
     );
     if (chosen != null) {
       ref.read(checkoutDraftProvider.notifier).setLinePerformer(line.id, chosen);
@@ -321,7 +299,13 @@ class _LineTile extends ConsumerWidget {
           autofocus: true,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: <TextInputFormatter>[
-            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+            // Reject any edit that isn't a clean decimal (one dot, <=2 fraction digits)
+            // so the money codec never sees "1.2.3" and throws on Apply.
+            TextInputFormatter.withFunction((oldValue, newValue) {
+              final t = newValue.text;
+              if (t.isEmpty) return newValue;
+              return RegExp(r'^\d*\.?\d{0,2}$').hasMatch(t) ? newValue : oldValue;
+            }),
           ],
           style: const TextStyle(color: _ink),
           decoration: InputDecoration(
@@ -347,5 +331,64 @@ class _LineTile extends ConsumerWidget {
     if (result != null) {
       ref.read(checkoutDraftProvider.notifier).setLineDiscountCents(line.id, result);
     }
+  }
+}
+
+/// Performer chooser for a line. Watches staff_public so it shows a spinner while
+/// loading and actionable copy if it can't load; returns the chosen staff via pop.
+class _PerformerSheet extends ConsumerWidget {
+  const _PerformerSheet({required this.currentId});
+  final String currentId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final staff = ref.watch(staffPublicProvider);
+    return SafeArea(
+      child: staff.when(
+        loading: () => const Padding(
+          padding: EdgeInsets.all(28),
+          child: Center(child: CircularProgressIndicator(color: _pink)),
+        ),
+        error: (Object e, _) => const Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            "Couldn't load the team. Check your connection and try again.",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: _muted),
+          ),
+        ),
+        data: (List<StaffMember> list) {
+          if (list.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.all(24),
+              child: Text(
+                'No active staff yet. Add them in the backoffice first.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: _muted),
+              ),
+            );
+          }
+          return ListView(
+            shrinkWrap: true,
+            children: <Widget>[
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 14, 16, 6),
+                child: Text('Who performed this?',
+                    style: TextStyle(color: _ink, fontWeight: FontWeight.w800, fontSize: 16)),
+              ),
+              for (final s in list)
+                ListTile(
+                  leading: const Icon(Icons.person, color: _pink),
+                  title: Text(s.name, style: const TextStyle(color: _ink)),
+                  trailing: s.id == currentId
+                      ? const Icon(Icons.check_circle, color: _pink)
+                      : null,
+                  onTap: () => Navigator.of(context).pop(s),
+                ),
+            ],
+          );
+        },
+      ),
+    );
   }
 }
