@@ -45,9 +45,20 @@ dependencies:
   # Declarative routing with a session-based redirect.
   go_router: ^14.2.0
 
+  # Local read-through cache (SQLite) for the catalog + staff, and the durable pay
+  # outbox (Phase 4.4). Keeps the counter working through a WiFi blip. No rates cached.
+  drift: ^2.18.0
+  sqlite3_flutter_libs: ^0.5.24
+  path_provider: ^2.1.3
+  path: ^1.9.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
+  # Drift code generation.
+  drift_dev: ^2.18.0
+  build_runner: ^2.4.11
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

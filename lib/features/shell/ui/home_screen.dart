@@ -64,6 +64,16 @@ class HomeScreen extends ConsumerWidget {
               icon: const Icon(Icons.badge_outlined),
               label: Text(active == null ? 'Choose performer' : 'Change performer'),
             ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => context.push('/checkout'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFF5EDF1),
+                side: const BorderSide(color: Color(0xFF2E2333)),
+              ),
+              icon: const Icon(Icons.point_of_sale),
+              label: const Text('Open checkout'),
+            ),
           ],
         ),
       ),
