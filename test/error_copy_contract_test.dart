@@ -39,11 +39,23 @@ DraftLine _line() => const DraftLine(
 
 void main() {
   group('mapAuthError — every branch is actionable', () {
-    test('rate limited (429)', () {
+    test('rate limited (429) via message heuristic', () {
       expectActionable(mapAuthError(const AuthException('too many requests', statusCode: '429')));
     });
-    test('bad credentials (400)', () {
-      expectActionable(mapAuthError(const AuthException('invalid login credentials', statusCode: '400')));
+    test('bad credentials via message heuristic', () {
+      expectActionable(mapAuthError(const AuthException('invalid login credentials')));
+    });
+    // Pin the statusCode fast-path: AuthApiException whose MESSAGE matches no heuristic,
+    // so only the status code can route it to the right actionable copy.
+    test('rate limited via 429 status (AuthApiException, non-matching message)', () {
+      final e = mapAuthError(AuthApiException('rate limited', statusCode: '429'));
+      expectActionable(e);
+      expect(e.message.toLowerCase(), contains('wait'));
+    });
+    test('bad credentials via 400 status (AuthApiException, non-matching message)', () {
+      final e = mapAuthError(AuthApiException('bad request', statusCode: '400'));
+      expectActionable(e);
+      expect(e.message.toLowerCase(), contains('incorrect'));
     });
     test('other auth exception', () {
       expectActionable(mapAuthError(const AuthException('Email not confirmed')));
