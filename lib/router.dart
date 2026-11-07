@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'features/auth/session_controller.dart';
 import 'features/auth/ui/login_screen.dart';
 import 'features/checkout/ui/checkout_screen.dart';
+import 'features/reports/ui/cashup_screen.dart';
 import 'features/shell/ui/home_screen.dart';
 import 'features/shell/ui/no_access_screen.dart';
 import 'features/shell/ui/splash_screen.dart';
@@ -27,6 +28,7 @@ final routerProvider = Provider<GoRouter>((Ref ref) {
       GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
       GoRoute(path: '/performer', builder: (_, __) => const StaffSwitchScreen()),
       GoRoute(path: '/checkout', builder: (_, __) => const CheckoutScreen()),
+      GoRoute(path: '/cashup', builder: (_, __) => const CashUpScreen()),
     ],
     redirect: (_, GoRouterState state) {
       final SessionState auth = ref.read(sessionProvider);

@@ -74,6 +74,15 @@ class HomeScreen extends ConsumerWidget {
               icon: const Icon(Icons.point_of_sale),
               label: const Text('Open checkout'),
             ),
+            if (auth is Authenticated && auth.isOwner) ...<Widget>[
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: () => context.push('/cashup'),
+                icon: const Icon(Icons.summarize_outlined, color: Color(0xFFB8A9B0)),
+                label: const Text('Cash-up & commission',
+                    style: TextStyle(color: Color(0xFFB8A9B0))),
+              ),
+            ],
           ],
         ),
       ),
