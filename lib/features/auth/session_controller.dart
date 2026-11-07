@@ -36,6 +36,7 @@ final class Authenticated extends SessionState {
   final String? fullName;
 
   bool get isStaffOrOwner => role == 'owner' || role == 'staff';
+  bool get isOwner => role == 'owner';
 }
 
 /// Owns the Supabase session and the signed-in user's role.
