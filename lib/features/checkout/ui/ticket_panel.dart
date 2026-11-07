@@ -7,6 +7,8 @@ import '../../staff/staff_member.dart';
 import '../../staff/staff_repo.dart';
 import '../checkout_controller.dart';
 import '../domain/checkout_draft.dart';
+import '../payment_controller.dart';
+import 'payment_sheet.dart';
 
 const _bg = Color(0xFF0C0A0F);
 const _panel = Color(0xFF141019);
@@ -33,7 +35,7 @@ class TicketPanel extends ConsumerWidget {
       color: _panel,
       child: Column(
         children: <Widget>[
-          _header(context, draft, ctrl),
+          _header(context, ref, draft, ctrl),
           const Divider(height: 1, color: _line),
           Expanded(
             child: draft.isEmpty
@@ -46,13 +48,14 @@ class TicketPanel extends ConsumerWidget {
                   ),
           ),
           const Divider(height: 1, color: _line),
-          _totals(context, draft),
+          _totals(context, ref, draft),
         ],
       ),
     );
   }
 
-  Widget _header(BuildContext context, CheckoutDraft draft, CheckoutDraftController ctrl) {
+  Widget _header(
+      BuildContext context, WidgetRef ref, CheckoutDraft draft, CheckoutDraftController ctrl) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
       child: Row(
@@ -65,7 +68,10 @@ class TicketPanel extends ConsumerWidget {
           const Spacer(),
           if (!draft.isEmpty)
             TextButton(
-              onPressed: ctrl.clear,
+              onPressed: () {
+                ctrl.clear();
+                ref.read(paymentDraftProvider.notifier).clear(); // drop any composed tenders
+              },
               child: const Text('Clear', style: TextStyle(color: _muted)),
             ),
           if (onClose != null)
@@ -79,7 +85,7 @@ class TicketPanel extends ConsumerWidget {
     );
   }
 
-  Widget _totals(BuildContext context, CheckoutDraft draft) {
+  Widget _totals(BuildContext context, WidgetRef ref, CheckoutDraft draft) {
     return Container(
       color: _bg,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -104,20 +110,34 @@ class TicketPanel extends ConsumerWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              // Pay is wired in Phase 4.4 (validation + outbox + pay_ticket).
-              onPressed: null,
+              onPressed: draft.isEmpty ? null : () => _openPayment(context),
               style: FilledButton.styleFrom(
                 backgroundColor: _pink,
                 disabledBackgroundColor: const Color(0xFF3A2430),
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
               child: Text(
-                draft.isEmpty ? 'Add items to take payment' : 'Pay (next step)',
+                draft.isEmpty ? 'Add items to take payment' : 'Payment',
                 style: const TextStyle(color: _ink, fontWeight: FontWeight.w800, fontSize: 16),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _openPayment(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => FractionallySizedBox(
+        heightFactor: 0.92,
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+          child: PaymentSheet(onClose: () => Navigator.of(ctx).pop()),
+        ),
       ),
     );
   }

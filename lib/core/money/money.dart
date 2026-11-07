@@ -4,6 +4,18 @@
 /// ways by string surgery (no float math), and are unit-tested so we can't mispay 100x.
 library;
 
+import 'package:flutter/services.dart';
+
+/// Input formatters for a money TextField: rejects any edit that isn't a clean decimal
+/// (one dot, <=2 fraction digits), so `centsFromServer` never sees "1.2.3" and throws.
+List<TextInputFormatter> moneyInputFormatters() => <TextInputFormatter>[
+      TextInputFormatter.withFunction((oldValue, newValue) {
+        final t = newValue.text;
+        if (t.isEmpty) return newValue;
+        return RegExp(r'^\d*\.?\d{0,2}$').hasMatch(t) ? newValue : oldValue;
+      }),
+    ];
+
 /// Parse a server money value (`numeric` as String/num, e.g. `"50.00"` or `50.5`)
 /// into integer cents. Null/empty -> 0. Extra fractional digits are truncated to 2dp.
 int centsFromServer(Object? value) {
