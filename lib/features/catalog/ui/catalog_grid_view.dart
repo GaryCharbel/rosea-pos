@@ -11,73 +11,48 @@ const _ink = Color(0xFFF5EDF1);
 const _muted = Color(0xFFB8A9B0);
 const _pink = Color(0xFFED3D8C);
 
-/// The checkout surface for Phase 4.1: the cached catalog grid. Ring-up (adding a
-/// tapped item to a ticket) arrives in Phase 4.2 — for now a tap is acknowledged.
-class CatalogGridScreen extends ConsumerWidget {
-  const CatalogGridScreen({super.key, this.onItemTap});
+/// The cached catalog grid, embeddable inside the checkout screen (no Scaffold of its
+/// own). Renders from the local Drift cache (read-through) and shows a background-sync
+/// progress bar + an actionable "showing last saved copy / Retry" banner.
+class CatalogGridView extends ConsumerWidget {
+  const CatalogGridView({super.key, required this.onItemTap});
 
-  /// Hook for Phase 4.2 (add the item to the open ticket). Defaults to a toast.
-  final void Function(BuildContext context, CatalogItem item)? onItemTap;
+  final void Function(BuildContext context, CatalogItem item) onItemTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final catalog = ref.watch(catalogProvider);
     final sync = ref.watch(catalogSyncProvider);
 
-    return Scaffold(
-      backgroundColor: _bg,
-      appBar: AppBar(
-        backgroundColor: _bg,
-        foregroundColor: _ink,
-        title: const Text('Checkout', style: TextStyle(fontWeight: FontWeight.w800)),
-        bottom: sync is SyncInProgress
-            ? const PreferredSize(
-                preferredSize: Size.fromHeight(2),
-                child: LinearProgressIndicator(minHeight: 2, color: _pink, backgroundColor: _bg),
-              )
-            : null,
-      ),
-      body: Column(
-        children: <Widget>[
-          if (sync is SyncFailed) _SyncBanner(message: sync.message, onRetry: () {
-            ref.read(catalogSyncProvider.notifier).refresh();
-          }),
-          Expanded(
-            child: catalog.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: _pink),
-              ),
-              error: (Object e, _) => const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text(
-                    "Couldn't open the local catalog. Restart the app; if it persists, reinstall.",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: _muted),
-                  ),
+    return Column(
+      children: <Widget>[
+        if (sync is SyncInProgress)
+          const LinearProgressIndicator(minHeight: 2, color: _pink, backgroundColor: _bg),
+        if (sync is SyncFailed)
+          _SyncBanner(
+            message: sync.message,
+            onRetry: () => ref.read(catalogSyncProvider.notifier).refresh(),
+          ),
+        Expanded(
+          child: catalog.when(
+            loading: () => const Center(child: CircularProgressIndicator(color: _pink)),
+            error: (Object e, _) => const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  "Couldn't open the local catalog. Restart the app; if it persists, reinstall.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _muted),
                 ),
               ),
-              data: (Catalog c) => c.isEmpty
-                  ? const _EmptyCatalog()
-                  : _CatalogList(
-                      catalog: c,
-                      onTap: (item) => (onItemTap ?? _defaultTap)(context, item),
-                    ),
             ),
+            data: (Catalog c) => c.isEmpty
+                ? const _EmptyCatalog()
+                : _CatalogList(catalog: c, onTap: (item) => onItemTap(context, item)),
           ),
-        ],
-      ),
+        ),
+      ],
     );
-  }
-
-  void _defaultTap(BuildContext context, CatalogItem item) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        backgroundColor: _card,
-        content: Text('${item.name} — ring-up arrives in the next step',
-            style: const TextStyle(color: _ink)),
-      ));
   }
 }
 
@@ -96,12 +71,11 @@ class _SyncBanner extends StatelessWidget {
           children: <Widget>[
             const Icon(Icons.wifi_off, color: _pink, size: 18),
             const SizedBox(width: 10),
-            Expanded(
-              child: Text(message, style: const TextStyle(color: _ink, fontSize: 13)),
-            ),
+            Expanded(child: Text(message, style: const TextStyle(color: _ink, fontSize: 13))),
             TextButton(
               onPressed: onRetry,
-              child: const Text('Retry', style: TextStyle(color: _pink, fontWeight: FontWeight.w800)),
+              child: const Text('Retry',
+                  style: TextStyle(color: _pink, fontWeight: FontWeight.w800)),
             ),
           ],
         ),
@@ -158,7 +132,8 @@ class _CatalogList extends StatelessWidget {
               spacing: 10,
               runSpacing: 10,
               children: <Widget>[
-                for (final item in section.items) _ItemCard(item: item, onTap: () => onTap(item)),
+                for (final item in section.items)
+                  _ItemCard(item: item, onTap: () => onTap(item)),
               ],
             ),
           ],
@@ -186,8 +161,6 @@ class _ItemCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(14),
-          // The combined label above is what a screen reader announces; don't also
-          // read the two inner texts separately.
           child: ExcludeSemantics(
             child: Container(
               width: 168,
