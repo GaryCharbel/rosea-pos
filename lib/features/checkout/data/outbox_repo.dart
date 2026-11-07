@@ -74,9 +74,14 @@ class OutboxRepo {
         .write(PayOutboxCompanion(status: const Value('pending'), updatedAt: Value(DateTime.now())));
   }
 
-  Future<List<PayIntent>> pendingIntents() async {
+  /// Pending intents, oldest first. [maxAttempts], when set, excludes rows that have
+  /// already been auto-retried that many times — they stay queued (never lost) but stop
+  /// hammering in the background; the owner can force them from the outbox screen (4.5).
+  Future<List<PayIntent>> pendingIntents({int? maxAttempts}) async {
     final rows = await (_db.select(_db.payOutbox)
-          ..where((t) => t.status.equals('pending'))
+          ..where((t) => maxAttempts == null
+              ? t.status.equals('pending')
+              : t.status.equals('pending') & t.attempts.isSmallerThanValue(maxAttempts))
           ..orderBy([(t) => OrderingTerm(expression: t.createdAt)]))
         .get();
     return rows.map((r) => PayIntent.decode(r.payload)).toList();

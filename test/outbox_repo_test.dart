@@ -67,6 +67,18 @@ void main() {
     expect(row.errorMessage, 'split mismatch');
   });
 
+  test('pendingIntents(maxAttempts) excludes rows that exhausted auto-retries', () async {
+    await repo.enqueue(_intent('tx1'));
+    for (var i = 0; i < 3; i++) {
+      await repo.markSending('tx1'); // attempts++ then back to pending (transient)
+      await repo.markPending('tx1', 'offline');
+    }
+    expect((await repo.byClientTx('tx1'))!.attempts, 3);
+    expect((await repo.pendingIntents()).length, 1); // uncapped still sees it
+    expect((await repo.pendingIntents(maxAttempts: 3)), isEmpty); // 3 is not < 3 -> skipped
+    expect((await repo.pendingIntents(maxAttempts: 5)).length, 1); // under the cap
+  });
+
   test('recoverInterrupted re-queues sending rows; pendingIntents decodes them', () async {
     await repo.enqueue(_intent('tx1'));
     await repo.markSending('tx1'); // interrupted mid-send

@@ -48,6 +48,10 @@ class PayFailed extends PayState {
 class PayController extends Notifier<PayState> {
   bool _inFlight = false;
 
+  /// Cap on background auto-retries per sale. A sale stuck past this stays queued
+  /// (never lost) but stops retrying on its own; the outbox screen (4.5) can force it.
+  static const int _maxAutoAttempts = 25;
+
   @override
   PayState build() => const PayIdle();
 
@@ -73,7 +77,7 @@ class PayController extends Notifier<PayState> {
       final repo = ref.read(outboxRepoProvider);
       await repo.recoverInterrupted();
       final gw = ref.read(payGatewayProvider);
-      for (final intent in await repo.pendingIntents()) {
+      for (final intent in await repo.pendingIntents(maxAttempts: _maxAutoAttempts)) {
         final ok = await _flush(intent, repo, gw, silent: true);
         if (!ok) break; // still offline — stop hammering, the next trigger retries
       }
