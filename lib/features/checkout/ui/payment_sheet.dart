@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
+import '../../../core/errors/app_error.dart';
 import '../../../core/money/money.dart';
 import '../../staff/staff_member.dart';
 import '../../staff/staff_repo.dart';
 import '../checkout_controller.dart';
+import '../domain/pay_intent.dart';
 import '../domain/payment_draft.dart';
+import '../pay_controller.dart';
 import '../payment_controller.dart';
+import 'receipt_dialog.dart';
 
 const _bg = Color(0xFF0C0A0F);
 const _panel = Color(0xFF141019);
@@ -35,6 +40,10 @@ class PaymentSheet extends ConsumerWidget {
     // after composing payment) — the split no longer matches, so make the cashier
     // clear and re-enter instead of stranding on "Add 0.00 to settle".
     final overpaid = pay.paidCents > total;
+    final payState = ref.watch(payControllerProvider);
+
+    // React to pay outcomes (success -> receipt; queued/failed -> actionable toast).
+    ref.listen<PayState>(payControllerProvider, (prev, next) => _onPayState(context, ref, next));
 
     return Container(
       color: _panel,
@@ -94,8 +103,9 @@ class PaymentSheet extends ConsumerWidget {
             ),
           ),
           const Divider(height: 1, color: _line),
-          _footer(context, settled, remaining,
+          _footer(context, ref, settled, remaining,
               overpaid: overpaid,
+              sending: payState is PaySending,
               onClearTenders: () => ref.read(paymentDraftProvider.notifier).clearPayments()),
         ],
       ),
@@ -223,8 +233,8 @@ class PaymentSheet extends ConsumerWidget {
     );
   }
 
-  Widget _footer(BuildContext context, bool settled, int remaining,
-      {required bool overpaid, required VoidCallback onClearTenders}) {
+  Widget _footer(BuildContext context, WidgetRef ref, bool settled, int remaining,
+      {required bool overpaid, required bool sending, required VoidCallback onClearTenders}) {
     if (overpaid) {
       return Container(
         color: _bg,
@@ -252,25 +262,101 @@ class PaymentSheet extends ConsumerWidget {
             disabledBackgroundColor: const Color(0xFF3A2430),
             padding: const EdgeInsets.symmetric(vertical: 16),
           ),
-          onPressed: settled
-              ? () {
-                  // Pay flow (validate + pay_ticket + receipt) lands in Phase 4.4.
-                  ScaffoldMessenger.of(context)
-                    ..hideCurrentSnackBar()
-                    ..showSnackBar(const SnackBar(
-                      backgroundColor: _card,
-                      content: Text('Ready to charge — the pay step wires up next.',
-                          style: TextStyle(color: _ink)),
-                    ));
-                }
-              : null,
-          child: Text(
-            settled ? 'Take payment' : 'Add ${formatCents(remaining)} to settle',
-            style: const TextStyle(color: _ink, fontWeight: FontWeight.w800, fontSize: 16),
-          ),
+          onPressed: (settled && !sending) ? () => _takePayment(context, ref) : null,
+          child: sending
+              ? const SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2.5, color: _ink))
+              : Text(
+                  settled ? 'Take payment' : 'Add ${formatCents(remaining)} to settle',
+                  style: const TextStyle(color: _ink, fontWeight: FontWeight.w800, fontSize: 16),
+                ),
         ),
       ),
     );
+  }
+
+  void _takePayment(BuildContext context, WidgetRef ref) {
+    final draft = ref.read(checkoutDraftProvider);
+    final pay = ref.read(paymentDraftProvider);
+    final active = ref.read(activeStaffProvider);
+
+    final AppError? problem =
+        validatePayable(draft: draft, pay: pay, openedByStaffId: active?.id);
+    if (problem != null) {
+      _toast(context, problem.message);
+      return;
+    }
+
+    final intent = PayIntent(
+      clientTx: const Uuid().v4(),
+      openedByStaffId: active!.id,
+      totalCents: draft.totalCents,
+      lines: <PayLine>[
+        for (final l in draft.lines)
+          PayLine(
+            refId: l.refId,
+            kind: l.kind,
+            name: l.name,
+            unitPriceCents: l.unitPriceCents,
+            qty: l.qty,
+            lineDiscountCents: l.lineDiscountCents,
+            performerStaffId: l.performerStaffId,
+          ),
+      ],
+      payments: <PayTender>[
+        for (final p in pay.payments) PayTender(method: p.method, appliedCents: p.appliedCents),
+      ],
+      tips: <PayTip>[
+        for (final t in pay.tips)
+          PayTip(staffId: t.staffId, amountCents: t.amountCents, method: t.method),
+      ],
+    );
+    ref.read(payControllerProvider.notifier).pay(intent);
+  }
+
+  void _onPayState(BuildContext context, WidgetRef ref, PayState next) {
+    void finishTicket() {
+      ref.read(checkoutDraftProvider.notifier).clear();
+      ref.read(paymentDraftProvider.notifier).clear();
+      ref.read(payControllerProvider.notifier).reset();
+    }
+
+    switch (next) {
+      case PaySuccess(:final receipt):
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogCtx) => ReceiptDialog(
+            receipt: receipt,
+            onDone: () {
+              Navigator.of(dialogCtx).pop(); // close receipt
+              finishTicket();
+              (onClose ?? () => Navigator.of(context).maybePop())();
+            },
+          ),
+        );
+      case PayQueued(:final message):
+        _toast(context, message); // the sale is durable in the outbox
+        finishTicket();
+        (onClose ?? () => Navigator.of(context).maybePop())();
+      case PayFailed(:final message):
+        _toast(context, message); // stay on the sheet so they can fix it
+        ref.read(payControllerProvider.notifier).reset();
+      case PayIdle():
+      case PaySending():
+        break;
+    }
+  }
+
+  void _toast(BuildContext context, String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        backgroundColor: _card,
+        content: Text(message, style: const TextStyle(color: _ink)),
+      ));
   }
 
   /// Exact remaining + the next $5/$10/$20 round-ups (deduped), at most four chips.
