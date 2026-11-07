@@ -58,6 +58,10 @@ class PaymentController extends Notifier<PaymentDraft> {
     state = state.copyWith(tips: state.tips.where((t) => t.id != id).toList());
   }
 
+  /// Drops the tenders but keeps tips (used when the ticket total changed and the
+  /// composed split no longer matches).
+  void clearPayments() => state = state.copyWith(payments: const <Payment>[]);
+
   void clear() => state = const PaymentDraft();
 
   void _add(Payment p) => state = state.copyWith(payments: <Payment>[...state.payments, p]);

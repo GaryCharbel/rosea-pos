@@ -31,6 +31,10 @@ class PaymentSheet extends ConsumerWidget {
     final pay = ref.watch(paymentDraftProvider);
     final remaining = pay.remainingCents(total);
     final settled = pay.isSettled(total);
+    // The ticket total dropped below what's already tendered (the ticket was edited
+    // after composing payment) — the split no longer matches, so make the cashier
+    // clear and re-enter instead of stranding on "Add 0.00 to settle".
+    final overpaid = pay.paidCents > total;
 
     return Container(
       color: _panel,
@@ -45,6 +49,19 @@ class PaymentSheet extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               children: <Widget>[
                 _summary(total, pay, remaining),
+                if (overpaid) ...<Widget>[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                        color: const Color(0xFF2A1420), borderRadius: BorderRadius.circular(12)),
+                    child: Text(
+                      'Tenders (${formatCents(pay.paidCents)}) now exceed the ticket total '
+                      '(${formatCents(total)}) — the ticket changed. Clear and re-enter the payment.',
+                      style: const TextStyle(color: _ink, fontSize: 13),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 if (pay.payments.isNotEmpty) ...<Widget>[
                   _sectionLabel('TENDERS'),
@@ -77,7 +94,9 @@ class PaymentSheet extends ConsumerWidget {
             ),
           ),
           const Divider(height: 1, color: _line),
-          _footer(context, settled, remaining),
+          _footer(context, settled, remaining,
+              overpaid: overpaid,
+              onClearTenders: () => ref.read(paymentDraftProvider.notifier).clearPayments()),
         ],
       ),
     );
@@ -204,7 +223,24 @@ class PaymentSheet extends ConsumerWidget {
     );
   }
 
-  Widget _footer(BuildContext context, bool settled, int remaining) {
+  Widget _footer(BuildContext context, bool settled, int remaining,
+      {required bool overpaid, required VoidCallback onClearTenders}) {
+    if (overpaid) {
+      return Container(
+        color: _bg,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: _pink, padding: const EdgeInsets.symmetric(vertical: 16)),
+            onPressed: onClearTenders,
+            child: const Text('Clear tenders & re-enter',
+                style: TextStyle(color: _ink, fontWeight: FontWeight.w800, fontSize: 16)),
+          ),
+        ),
+      );
+    }
     return Container(
       color: _bg,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),

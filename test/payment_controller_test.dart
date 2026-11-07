@@ -63,4 +63,12 @@ void main() {
     expect(draft().payments, isEmpty);
     expect(draft().tips, isEmpty);
   });
+
+  test('clearPayments drops tenders but keeps tips', () {
+    ctrl().addCashTender(5000, 5000);
+    ctrl().addTip(_lea, 500, PaymentMethod.cash);
+    ctrl().clearPayments();
+    expect(draft().payments, isEmpty);
+    expect(draft().tipTotalCents, 500);
+  });
 }
