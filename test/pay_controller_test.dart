@@ -98,6 +98,13 @@ void main() {
     expect((await c.read(outboxRepoProvider).byClientTx('tx1'))!.status, 'failed');
   });
 
+  test('unknown error -> PayFailed, outbox failed (not retried)', () async {
+    final c = _container(_FakeGateway((_) async => throw const FormatException('boom')));
+    await c.read(payControllerProvider.notifier).pay(_intent());
+    expect(c.read(payControllerProvider), isA<PayFailed>());
+    expect((await c.read(outboxRepoProvider).byClientTx('tx1'))!.status, 'failed');
+  });
+
   test('single-flight: a second pay while one is in flight is ignored', () async {
     final gate = Completer<Map<String, dynamic>>();
     final gw = _FakeGateway((_) => gate.future);

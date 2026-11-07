@@ -77,6 +77,9 @@ class PayController extends Notifier<PayState> {
         final ok = await _flush(intent, repo, gw, silent: true);
         if (!ok) break; // still offline — stop hammering, the next trigger retries
       }
+    } catch (_) {
+      // Boot/background recovery is best-effort — never let it surface as an uncaught
+      // error. Anything still pending is retried on the next trigger.
     } finally {
       _inFlight = false;
     }

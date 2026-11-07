@@ -27,5 +27,12 @@ void main() {
       expect((e as PayError).retriable, isTrue);
       expect(e.message.toLowerCase(), contains('queued'));
     });
+
+    test('an unknown, non-transport error is NOT retriable (no outbox poison)', () {
+      final e = mapPayError(const FormatException('weird response'));
+      expect(e, isA<PayError>());
+      expect((e as PayError).retriable, isFalse);
+      expect(e.message, contains("wasn't charged"));
+    });
   });
 }

@@ -63,9 +63,12 @@ AppError mapPayError(Object error) {
       retriable: true,
     );
   }
+  // Unknown, non-transport failure: do NOT auto-retry (that could loop forever on a
+  // non-transient error). It's saved in the outbox and can be retried by hand — the
+  // call is idempotent, so that stays safe.
   return const PayError(
-    "Couldn't reach the server to take payment. It's queued — try again in a moment.",
-    retriable: true,
+    "Couldn't take payment — it wasn't charged. The ticket is saved; try again, and "
+    'tell the owner if it keeps happening.',
   );
 }
 
