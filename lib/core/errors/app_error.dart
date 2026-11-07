@@ -53,9 +53,8 @@ AppError mapPayError(Object error) {
           'Only salon staff can take payments. Sign in with a staff account.',
         );
     }
-    return PayError(serverMsg.isNotEmpty
-        ? serverMsg
-        : 'The payment was rejected. Check the ticket and try again.');
+    // Any other DB error is unexpected here — show actionable copy, not raw PG text.
+    return const PayError('The payment was rejected. Check the ticket and try again.');
   }
   if (_looksLikeNetwork(error)) {
     return const PayError(
