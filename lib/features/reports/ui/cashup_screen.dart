@@ -48,13 +48,25 @@ class CashUpScreen extends ConsumerWidget {
                 Expanded(
                   child: ref.watch(cashUpProvider).when(
                         loading: () => const Center(child: CircularProgressIndicator(color: _pink)),
-                        error: (Object e, _) => const Center(
+                        error: (Object e, _) => Center(
                           child: Padding(
-                            padding: EdgeInsets.all(24),
-                            child: Text(
-                              "Couldn't load the read-out. Check your connection and pull to refresh.",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: _muted),
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                const Text(
+                                  "Couldn't load the read-out. Check your connection and try again.",
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: _muted),
+                                ),
+                                const SizedBox(height: 16),
+                                FilledButton.icon(
+                                  onPressed: () => ref.invalidate(cashUpProvider),
+                                  style: FilledButton.styleFrom(backgroundColor: _pink),
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Try again'),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -103,6 +115,10 @@ class _RangeBar extends ConsumerWidget {
     return d(r.from) == d(lastDay) ? d(r.from) : '${d(r.from)} → ${d(lastDay)}';
   }
 
+  // Cap the window so the read-out never pulls an unbounded number of ledger rows to
+  // the client (the aggregation is client-side; a server-side SUM would lift this).
+  static const int _maxDays = 92;
+
   Future<void> _pick(BuildContext context, WidgetRef ref, CashUpRange current) async {
     final picked = await showDateRangePicker(
       context: context,
@@ -111,12 +127,21 @@ class _RangeBar extends ConsumerWidget {
       initialDateRange: DateTimeRange(
           start: current.from, end: current.to.subtract(const Duration(days: 1))),
     );
-    if (picked != null) {
-      final from = DateTime(picked.start.year, picked.start.month, picked.start.day);
-      final to = DateTime(picked.end.year, picked.end.month, picked.end.day)
-          .add(const Duration(days: 1)); // inclusive end day
-      ref.read(cashUpRangeProvider.notifier).state = (from: from, to: to);
+    if (picked == null || !context.mounted) return;
+    if (picked.end.difference(picked.start).inDays >= _maxDays) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+          backgroundColor: _card,
+          content: Text('Pick a range up to 3 months. For longer spans, use the dashboard (later).',
+              style: TextStyle(color: _ink)),
+        ));
+      return;
     }
+    final from = DateTime(picked.start.year, picked.start.month, picked.start.day);
+    final to = DateTime(picked.end.year, picked.end.month, picked.end.day)
+        .add(const Duration(days: 1)); // inclusive end day
+    ref.read(cashUpRangeProvider.notifier).state = (from: from, to: to);
   }
 }
 

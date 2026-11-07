@@ -54,7 +54,10 @@ class CashUpRepo {
   }
 }
 
-/// The current day [00:00, next 00:00).
+/// The current day [00:00, next 00:00) in the DEVICE's local timezone. For an on-site
+/// single-salon POS that is the salon's day (the till is reconciled where the device
+/// is). Honouring salon_settings.timezone for a different-tz device is a later concern
+/// (would need a tz library); kept device-local deliberately for Stage 1.
 CashUpRange todayRange() {
   final now = DateTime.now();
   final from = DateTime(now.year, now.month, now.day);
