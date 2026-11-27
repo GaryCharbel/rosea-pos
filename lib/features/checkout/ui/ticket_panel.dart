@@ -14,6 +14,7 @@ import '../domain/payment_draft.dart';
 import '../pay_controller.dart';
 import '../payment_controller.dart';
 import 'receipt_dialog.dart';
+import 'tender_dialog.dart';
 
 const _bg = Color(0xFF0C0A0F);
 const _panel = Color(0xFF141019);
@@ -183,16 +184,11 @@ class _PaymentArea extends ConsumerWidget {
                   for (final cents in _quickCash(remaining))
                     _chip(cents == remaining ? 'Cash ${formatCents(cents)}' : formatCents(cents),
                         () => ref.read(paymentDraftProvider.notifier).addCashTender(cents, remaining)),
-                  _chip('Cash…', () => _promptThen(context, 'Cash tendered', remaining,
-                      (c) => ref.read(paymentDraftProvider.notifier).addCashTender(c, remaining)),
+                  _chip('Cash…', () => _tender(context, ref, PaymentMethod.cash, remaining),
                       outlined: true),
-                  _chip('Card…', () => _promptThen(context, 'Card amount', remaining,
-                      (c) => ref.read(paymentDraftProvider.notifier)
-                          .addCardOrOther(PaymentMethod.card, c, remaining)),
+                  _chip('Card…', () => _tender(context, ref, PaymentMethod.card, remaining),
                       outlined: true),
-                  _chip('Other…', () => _promptThen(context, 'Other amount', remaining,
-                      (c) => ref.read(paymentDraftProvider.notifier)
-                          .addCardOrOther(PaymentMethod.other, c, remaining)),
+                  _chip('Other…', () => _tender(context, ref, PaymentMethod.other, remaining),
                       outlined: true),
                 ]),
               ],
@@ -288,10 +284,18 @@ class _PaymentArea extends ConsumerWidget {
     ref.read(payControllerProvider.notifier).pay(intent);
   }
 
-  Future<void> _promptThen(
-      BuildContext context, String title, int defaultCents, void Function(int) apply) async {
-    final entered = await _promptAmount(context, title, defaultCents);
-    if (entered != null && entered > 0) apply(entered);
+  /// Open the method-aware tender dialog (amount + live settles/change preview) and
+  /// apply the result: cash gives change, card/other cap at the remaining.
+  Future<void> _tender(
+      BuildContext context, WidgetRef ref, PaymentMethod method, int remaining) async {
+    final entered = await showTenderDialog(context, method: method, remainingCents: remaining);
+    if (entered == null || entered <= 0) return;
+    final notifier = ref.read(paymentDraftProvider.notifier);
+    if (method == PaymentMethod.cash) {
+      notifier.addCashTender(entered, remaining);
+    } else {
+      notifier.addCardOrOther(method, entered, remaining);
+    }
   }
 
   Future<void> _addTip(BuildContext context, WidgetRef ref) async {
