@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../catalog/domain/catalog.dart';
+import '../../clients/client.dart';
 
 /// One line on the in-progress ticket. Prices are integer cents. Every line is
 /// credited to the staff member who performed/sold it (performer-per-line) — that is
@@ -62,9 +63,13 @@ class DraftLine {
 /// It is persisted to the server + paid in the pay flow (Phase 4.4).
 @immutable
 class CheckoutDraft {
-  const CheckoutDraft({this.lines = const <DraftLine>[]});
+  const CheckoutDraft({this.lines = const <DraftLine>[], this.client});
 
   final List<DraftLine> lines;
+
+  /// The customer attached to this ticket (optional — walk-ins have none). Carried to
+  /// the server ticket row as `client_id`.
+  final Client? client;
 
   bool get isEmpty => lines.isEmpty;
   int get lineCount => lines.length;
@@ -78,5 +83,8 @@ class CheckoutDraft {
   /// What the customer owes: subtotal − discounts.
   int get totalCents => lines.fold(0, (s, l) => s + l.lineTotalCents);
 
-  CheckoutDraft withLines(List<DraftLine> newLines) => CheckoutDraft(lines: newLines);
+  CheckoutDraft withLines(List<DraftLine> newLines) =>
+      CheckoutDraft(lines: newLines, client: client);
+
+  CheckoutDraft withClient(Client? c) => CheckoutDraft(lines: lines, client: c);
 }

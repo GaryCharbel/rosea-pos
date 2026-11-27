@@ -40,6 +40,7 @@ class SupabasePayGateway implements PayGateway {
         'id': ticketId,
         'status': 'open',
         'opened_by': intent.openedByStaffId,
+        if (intent.clientId != null) 'client_id': intent.clientId,
       });
       await _insertLines(ticketId, intent);
     } else if (existing['status'] == 'open') {

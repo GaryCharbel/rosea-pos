@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/errors/app_error.dart';
 import '../../../core/money/money.dart';
+import '../../clients/ui/add_customer.dart';
 import '../../staff/staff_member.dart';
 import '../../staff/staff_repo.dart';
 import '../checkout_controller.dart';
@@ -45,6 +45,7 @@ class TicketPanel extends ConsumerWidget {
         children: <Widget>[
           _header(context, ref, draft, ctrl),
           const Divider(height: 1, color: _line),
+          const AddCustomerBar(),
           Expanded(
             child: draft.isEmpty
                 ? const _EmptyTicket()
@@ -263,6 +264,7 @@ class _PaymentArea extends ConsumerWidget {
       clientTx: const Uuid().v4(),
       openedByStaffId: active!.id,
       totalCents: draft.totalCents,
+      clientId: draft.client?.id,
       lines: <PayLine>[
         for (final l in draft.lines)
           PayLine(

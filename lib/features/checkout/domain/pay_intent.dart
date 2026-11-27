@@ -20,6 +20,7 @@ class PayIntent {
     required this.payments,
     required this.tips,
     required this.totalCents,
+    this.clientId,
   });
 
   final String clientTx;
@@ -28,6 +29,10 @@ class PayIntent {
   final List<PayTender> payments;
   final List<PayTip> tips;
   final int totalCents;
+
+  /// The customer attached to the ticket, if any (ticket.client_id). Optional —
+  /// walk-in tickets have none.
+  final String? clientId;
 
   /// p_payments for pay_ticket: applied amounts as `numeric` decimal strings.
   List<Map<String, dynamic>> rpcPayments() => <Map<String, dynamic>>[
@@ -52,6 +57,7 @@ class PayIntent {
         'client_tx': clientTx,
         'opened_by': openedByStaffId,
         'total_cents': totalCents,
+        if (clientId != null) 'client_id': clientId,
         'lines': lines.map((l) => l.toJson()).toList(),
         'payments': payments.map((p) => p.toJson()).toList(),
         'tips': tips.map((t) => t.toJson()).toList(),
@@ -61,6 +67,7 @@ class PayIntent {
         clientTx: j['client_tx'] as String,
         openedByStaffId: j['opened_by'] as String,
         totalCents: (j['total_cents'] as num).toInt(),
+        clientId: j['client_id'] as String?,
         lines: (j['lines'] as List<dynamic>)
             .map((e) => PayLine.fromJson(e as Map<String, dynamic>))
             .toList(),
