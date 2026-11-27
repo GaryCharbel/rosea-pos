@@ -154,13 +154,7 @@ class _Body extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: <Widget>[
-        Row(
-          children: <Widget>[
-            Expanded(child: _kpi('Gross takings', cashUp.grossTakingsCents, accent: _pink)),
-            const SizedBox(width: 12),
-            Expanded(child: _kpi('Tips', cashUp.tipTotalCents, accent: _gold)),
-          ],
-        ),
+        _kpiRow(cashUp),
         const SizedBox(height: 18),
         _sectionLabel('TAKINGS BY METHOD'),
         if (cashUp.takingsByMethod.isEmpty)
@@ -168,8 +162,11 @@ class _Body extends StatelessWidget {
             padding: EdgeInsets.symmetric(vertical: 8),
             child: Text('—', style: TextStyle(color: _muted)),
           )
-        else
-          for (final e in cashUp.takingsByMethod.entries) _row(_methodLabel(e.key), e.value),
+        else ...<Widget>[
+          for (final e in cashUp.takingsByMethod.entries) _methodRow(e.key, e.value),
+          const SizedBox(height: 12),
+          _TakingsBar(byMethod: cashUp.takingsByMethod, total: cashUp.grossTakingsCents),
+        ],
         const SizedBox(height: 18),
         _sectionLabel('COMMISSION BY STAFF'),
         for (final s in cashUp.commissionByStaff) _row(s.staffName, s.amountCents),
@@ -179,15 +176,56 @@ class _Body extends StatelessWidget {
     );
   }
 
-  Widget _kpi(String label, int cents, {required Color accent}) {
+  /// The three KPI cards — stacked on phones, side by side on wider screens (p.8).
+  Widget _kpiRow(CashUp c) {
+    final cards = <Widget>[
+      _kpi('Gross takings', c.grossTakingsCents, accent: _ink),
+      _kpi('Tips', c.tipTotalCents, accent: _gold),
+      _kpi('Total commission', c.totalCommissionCents, accent: _pink, highlight: true),
+    ];
+    return LayoutBuilder(
+      builder: (context, cons) {
+        if (cons.maxWidth >= 560) {
+          return IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Expanded(child: cards[0]),
+                const SizedBox(width: 12),
+                Expanded(child: cards[1]),
+                const SizedBox(width: 12),
+                Expanded(child: cards[2]),
+              ],
+            ),
+          );
+        }
+        return Column(
+          children: <Widget>[
+            cards[0],
+            const SizedBox(height: 12),
+            cards[1],
+            const SizedBox(height: 12),
+            cards[2],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _kpi(String label, int cents, {required Color accent, bool highlight = false}) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
             begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [_card2, _card]),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _line),
-        boxShadow: const [BoxShadow(color: Colors.black, blurRadius: 24, offset: Offset(0, 10))],
+        border: Border.all(color: highlight ? _pink : _line, width: highlight ? 1.5 : 1),
+        boxShadow: <BoxShadow>[
+          highlight
+              ? BoxShadow(
+                  color: _pink.withValues(alpha: 0.18), blurRadius: 24, offset: const Offset(0, 8))
+              : const BoxShadow(color: Colors.black, blurRadius: 24, offset: Offset(0, 10)),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -220,6 +258,66 @@ class _Body extends StatelessWidget {
     );
   }
 
+  Widget _methodRow(String wire, int cents) {
+    final icon = switch (wire) {
+      'cash' => Icons.payments_outlined,
+      'card' => Icons.credit_card_outlined,
+      _ => Icons.add_circle_outline,
+    };
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: <Widget>[
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, size: 18, color: _pink),
+          ),
+          const SizedBox(width: 12),
+          Text(_methodLabel(wire),
+              style: const TextStyle(color: _ink, fontWeight: FontWeight.w600, fontSize: 14)),
+          const Spacer(),
+          Text(formatCents(cents),
+              style: const TextStyle(color: _ink, fontWeight: FontWeight.w800, fontSize: 14)),
+        ],
+      ),
+    );
+  }
+
   String _methodLabel(String wire) =>
       switch (wire) { 'cash' => 'Cash', 'card' => 'Card', _ => 'Other' };
+}
+
+/// Proportional split of takings across methods (p.8, bottom-left bar).
+class _TakingsBar extends StatelessWidget {
+  const _TakingsBar({required this.byMethod, required this.total});
+  final Map<String, int> byMethod;
+  final int total;
+
+  static const Map<String, Color> _colors = <String, Color>{
+    'cash': _pink,
+    'card': Color(0xFF7A3B52),
+    'other': _gold,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    if (total <= 0) return const SizedBox.shrink();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: SizedBox(
+        height: 12,
+        child: Row(
+          children: <Widget>[
+            for (final e in byMethod.entries)
+              if (e.value > 0)
+                Expanded(
+                  flex: (e.value / total * 1000).round().clamp(1, 1000),
+                  child: Container(color: _colors[e.key] ?? _gold),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -27,7 +27,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Rosea POS'), findsOneWidget);
+    expect(find.text('Welcome back'), findsOneWidget);
+    expect(find.text('Rosea POS · v1.0'), findsOneWidget); // version footer
     expect(find.text('Email'), findsOneWidget);
     expect(find.text('Password'), findsOneWidget);
     expect(find.text('Sign in'), findsOneWidget);
