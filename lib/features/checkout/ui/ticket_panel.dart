@@ -13,6 +13,7 @@ import '../domain/pay_intent.dart';
 import '../domain/payment_draft.dart';
 import '../pay_controller.dart';
 import '../payment_controller.dart';
+import 'discount_dialog.dart';
 import 'receipt_dialog.dart';
 import 'tender_dialog.dart';
 
@@ -598,39 +599,11 @@ class _LineTile extends ConsumerWidget {
   }
 
   Future<void> _editDiscount(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController(
-      text: line.lineDiscountCents > 0 ? centsToDecimalString(line.lineDiscountCents) : '',
-    );
-    final result = await showDialog<int>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _panel,
-        title: const Text('Line discount', style: TextStyle(color: _ink)),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: moneyInputFormatters(),
-          style: const TextStyle(color: _ink),
-          decoration: InputDecoration(
-            prefixText: '− ',
-            prefixStyle: const TextStyle(color: _muted),
-            hintText: 'max ${formatCents(line.grossCents)}',
-            hintStyle: const TextStyle(color: _muted),
-          ),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(0),
-            child: const Text('Remove', style: TextStyle(color: _muted)),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _pink),
-            onPressed: () => Navigator.of(ctx).pop(centsFromServer(controller.text)),
-            child: const Text('Apply'),
-          ),
-        ],
-      ),
+    final result = await showLineDiscountDialog(
+      context,
+      lineName: line.name,
+      grossCents: line.grossCents,
+      currentDiscountCents: line.lineDiscountCents,
     );
     if (result != null) {
       ref.read(checkoutDraftProvider.notifier).setLineDiscountCents(line.id, result);
