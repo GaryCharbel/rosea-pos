@@ -38,8 +38,12 @@ final routerProvider = Provider<GoRouter>((Ref ref) {
       // Signed in but not a salon owner/staff: the POS is staff-only — hold them on
       // the no-access screen (they can sign out and switch accounts from there).
       if (!auth.isStaffOrOwner) return loc == '/no-access' ? null : '/no-access';
-      // Authorized: keep them out of the auth/gate routes; everything else is the shell.
-      return (loc == '/splash' || loc == '/login' || loc == '/no-access') ? '/' : null;
+      // Authorized: land on the sales/checkout screen (the POS home). The gate routes
+      // and the old shell route ('/') all funnel there; everything else stays put.
+      const landing = '/checkout';
+      return (loc == '/splash' || loc == '/login' || loc == '/no-access' || loc == '/')
+          ? landing
+          : null;
     },
   );
 });

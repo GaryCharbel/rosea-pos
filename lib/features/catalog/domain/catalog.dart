@@ -26,11 +26,19 @@ class CatalogItem {
   int get hashCode => Object.hash(id, kind);
 }
 
-/// A titled group of items for the grid (a category, or an "Uncategorized" catch-all).
+/// A titled group of items for the grid (a category, or a per-kind catch-all). [id]
+/// is the category id, or a synthetic key for the catch-alls — used to key the rail
+/// selection and pick a tint.
 @immutable
 class CatalogSection {
-  const CatalogSection({required this.title, required this.kind, required this.items});
+  const CatalogSection({
+    required this.id,
+    required this.title,
+    required this.kind,
+    required this.items,
+  });
 
+  final String id;
   final String title;
   final CatalogKind kind;
   final List<CatalogItem> items;
@@ -69,18 +77,18 @@ Catalog groupCatalog({
     final items = (c.kind == CatalogKind.product ? prodByCat[c.id] : svcByCat[c.id]) ??
         const <CatalogItem>[];
     if (items.isNotEmpty) {
-      sections.add(CatalogSection(title: c.name, kind: c.kind, items: items));
+      sections.add(CatalogSection(id: c.id, title: c.name, kind: c.kind, items: items));
     }
   }
   final looseServices = svcByCat[null] ?? const <CatalogItem>[];
   if (looseServices.isNotEmpty) {
     sections.add(CatalogSection(
-        title: 'Services', kind: CatalogKind.service, items: looseServices));
+        id: '__services', title: 'Services', kind: CatalogKind.service, items: looseServices));
   }
   final looseProducts = prodByCat[null] ?? const <CatalogItem>[];
   if (looseProducts.isNotEmpty) {
     sections.add(CatalogSection(
-        title: 'Products', kind: CatalogKind.product, items: looseProducts));
+        id: '__products', title: 'Products', kind: CatalogKind.product, items: looseProducts));
   }
   return Catalog(sections);
 }

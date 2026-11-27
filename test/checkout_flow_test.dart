@@ -2,6 +2,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rosea_pos/features/auth/session_controller.dart';
 import 'package:rosea_pos/features/catalog/catalog_repo.dart';
 import 'package:rosea_pos/features/catalog/domain/catalog.dart';
 import 'package:rosea_pos/features/checkout/data/outbox_database.dart';
@@ -12,10 +13,8 @@ import 'package:rosea_pos/features/checkout/ui/checkout_screen.dart';
 import 'package:rosea_pos/features/staff/staff_member.dart';
 import 'package:rosea_pos/features/staff/staff_repo.dart';
 
-/// Full-flow pair-test (Phase 5.2): drive the real checkout UI from tapping a catalog
-/// item through the payment sheet to the receipt, with ONLY the server round-trip
-/// faked (the PayGateway). The backend half — pay_ticket's commission/stock/idempotency
-/// — is proven by the pgTAP suite in the rosea repo.
+/// Full-flow pair-test (Phase 5.2): drive the real checkout UI — tap a catalog item,
+/// tender inline, Take payment, receipt — with only the server round-trip faked.
 class _IdleSync extends CatalogSyncController {
   @override
   SyncStatus build() => const SyncIdle();
@@ -28,7 +27,11 @@ class _ActiveLea extends ActiveStaffController {
   StaffMember build() => const StaffMember(id: 'st1', name: 'Lea');
 }
 
-/// Captures the intent it was handed and returns a realistic receipt payload.
+class _OwnerSession extends SessionController {
+  @override
+  SessionState build() => const Authenticated(userId: 'u1', role: 'owner');
+}
+
 class _FakeGateway implements PayGateway {
   PayIntent? captured;
   @override
@@ -54,14 +57,13 @@ class _FakeGateway implements PayGateway {
 }
 
 const _catalog = Catalog([
-  CatalogSection(title: 'Hair', kind: CatalogKind.service, items: [
+  CatalogSection(id: 'c1', title: 'Hair', kind: CatalogKind.service, items: [
     CatalogItem(id: 'svc1', name: "Women's Cut", priceCents: 5000, kind: CatalogKind.service),
   ]),
 ]);
 
 void main() {
-  testWidgets('catalog tap → ticket → pay → receipt → ticket cleared', (tester) async {
-    // Wide surface so the ticket panel is inline (not the narrow bottom bar).
+  testWidgets('catalog tap → inline tender → take payment → receipt → cleared', (tester) async {
     tester.view.physicalSize = const Size(1400, 1000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -73,6 +75,7 @@ void main() {
         catalogProvider.overrideWith((ref) => Stream.value(_catalog)),
         catalogSyncProvider.overrideWith(_IdleSync.new),
         activeStaffProvider.overrideWith(_ActiveLea.new),
+        sessionProvider.overrideWith(_OwnerSession.new),
         payGatewayProvider.overrideWithValue(gateway),
         outboxDatabaseProvider.overrideWith((ref) {
           final db = OutboxDatabase.forTesting(NativeDatabase.memory());
@@ -84,30 +87,21 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // 1. ring up the service
+    // ring up the service
     await tester.tap(find.text("Women's Cut").first);
     await tester.pumpAndSettle();
-    expect(find.text('50.00'), findsWidgets); // ticket total
+    expect(find.text('50.00'), findsWidgets);
 
-    // 2. open the payment sheet
-    await tester.tap(find.widgetWithText(FilledButton, 'Payment'));
-    await tester.pumpAndSettle();
-    expect(find.text('Remaining'), findsOneWidget);
-
-    // 3. tender exact cash -> settled
+    // tender exact cash inline (no pop-up sheet), then take payment
     await tester.tap(find.text('Cash 50.00'));
     await tester.pumpAndSettle();
-    expect(find.text('Settled'), findsOneWidget);
-
-    // 4. take payment -> fake gateway -> receipt
     await tester.tap(find.widgetWithText(FilledButton, 'Take payment'));
     await tester.pumpAndSettle();
-    expect(find.text('Receipt #1001'), findsOneWidget);
-    expect(gateway.captured, isNotNull);
-    expect(gateway.captured!.totalCents, 5000);
-    expect(gateway.captured!.openedByStaffId, 'st1');
 
-    // 5. done -> ticket cleared
+    expect(find.text('Receipt #1001'), findsOneWidget);
+    expect(gateway.captured?.totalCents, 5000);
+    expect(gateway.captured?.openedByStaffId, 'st1');
+
     await tester.tap(find.text('Done — new ticket'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Tap services or products'), findsOneWidget);
