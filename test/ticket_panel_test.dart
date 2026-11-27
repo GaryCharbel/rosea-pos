@@ -75,4 +75,17 @@ void main() {
     // line total + ticket total now read 85.00 (10000 − 1500); subtotal stays 100.00
     expect(find.text('85.00'), findsWidgets);
   });
+
+  testWidgets('quantity steppers meet a comfortable tap target (Fitts)', (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [checkoutDraftProvider.overrideWith(_Seeded.new)],
+      child: const MaterialApp(home: Scaffold(body: TicketPanel())),
+    ));
+    await tester.pumpAndSettle();
+
+    final inc = tester.getSize(find.byTooltip('Increase quantity'));
+    expect(inc.width, greaterThanOrEqualTo(40));
+    expect(inc.height, greaterThanOrEqualTo(40));
+    expect(find.byTooltip('Decrease quantity'), findsOneWidget);
+  });
 }
