@@ -4,6 +4,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../staff_member.dart';
 import '../staff_repo.dart';
 
+/// Per-person avatar tints (initials on a colour disc, p.6) — stable per staff id.
+const List<Color> _avatarTints = <Color>[
+  Color(0xFF7A3B52), // plum-pink
+  Color(0xFF4A3A6E), // indigo
+  Color(0xFF2E5A63), // teal
+  Color(0xFF6E5A2E), // gold-brown
+  Color(0xFF3A6E4A), // green
+];
+// A stable hash of the id — String.hashCode isn't guaranteed stable across runs or
+// platforms, so a performer would otherwise change avatar colour between launches.
+int _stableHash(String s) {
+  var h = 0;
+  for (final c in s.codeUnits) {
+    h = (h * 31 + c) & 0x7fffffff;
+  }
+  return h;
+}
+
+Color _avatarColor(String id) => _avatarTints[_stableHash(id) % _avatarTints.length];
+
+String _initials(String name) {
+  final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+  return (parts[0].substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
+}
+
 /// Pick the active performer from the (active-only) `staff_public` list. No PIN in
 /// Stage 1 — the signed-in account is the writer of record; this just sets who gets
 /// credited on new lines. The chosen performer defaults onto subsequent lines.
@@ -20,7 +47,7 @@ class StaffSwitchScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: const Color(0xFF0C0A0F),
         foregroundColor: const Color(0xFFF5EDF1),
-        title: const Text("Who's serving?", style: TextStyle(fontWeight: FontWeight.w800)),
+        title: const Text('Choose performer', style: TextStyle(fontWeight: FontWeight.w800)),
       ),
       body: staff.when(
         loading: () => const Center(
@@ -79,10 +106,11 @@ class StaffSwitchScreen extends ConsumerWidget {
                         : BorderSide.none,
                   ),
                   leading: CircleAvatar(
-                    backgroundColor: const Color(0xFFED3D8C),
+                    backgroundColor: _avatarColor(s.id),
                     child: Text(
-                      s.name.isNotEmpty ? s.name[0].toUpperCase() : '?',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                      _initials(s.name),
+                      style: const TextStyle(
+                          color: Color(0xFFF5EDF1), fontWeight: FontWeight.w800),
                     ),
                   ),
                   title: Text(
