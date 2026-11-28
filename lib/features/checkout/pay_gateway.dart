@@ -56,6 +56,7 @@ class SupabasePayGateway implements PayGateway {
       'p_payments': intent.rpcPayments(),
       'p_tips': intent.rpcTips(),
       'p_client_tx': intent.clientTx,
+      'p_ticket_discount': intent.rpcTicketDiscount(),
     });
     return Map<String, dynamic>.from(result as Map);
   }

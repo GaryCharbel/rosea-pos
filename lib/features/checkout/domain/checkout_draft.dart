@@ -63,13 +63,21 @@ class DraftLine {
 /// It is persisted to the server + paid in the pay flow (Phase 4.4).
 @immutable
 class CheckoutDraft {
-  const CheckoutDraft({this.lines = const <DraftLine>[], this.client});
+  const CheckoutDraft({
+    this.lines = const <DraftLine>[],
+    this.client,
+    this.ticketDiscountCents = 0,
+  });
 
   final List<DraftLine> lines;
 
   /// The customer attached to this ticket (optional — walk-ins have none). Carried to
   /// the server ticket row as `client_id`.
   final Client? client;
+
+  /// A whole-ticket discount (on top of any per-line discounts), in cents. Always
+  /// within [0, preTicketTotalCents]. pay_ticket distributes it pro-rata for commission.
+  final int ticketDiscountCents;
 
   bool get isEmpty => lines.isEmpty;
   int get lineCount => lines.length;
@@ -80,11 +88,34 @@ class CheckoutDraft {
   /// Sum of per-line discounts.
   int get discountCents => lines.fold(0, (s, l) => s + l.lineDiscountCents);
 
-  /// What the customer owes: subtotal − discounts.
-  int get totalCents => lines.fold(0, (s, l) => s + l.lineTotalCents);
+  /// Line total before the whole-ticket discount (Σ line totals).
+  int get preTicketTotalCents => lines.fold(0, (s, l) => s + l.lineTotalCents);
 
-  CheckoutDraft withLines(List<DraftLine> newLines) =>
-      CheckoutDraft(lines: newLines, client: client);
+  /// What the customer owes: Σ line totals − the ticket discount (never negative).
+  int get totalCents {
+    final t = preTicketTotalCents - ticketDiscountCents;
+    return t < 0 ? 0 : t;
+  }
 
-  CheckoutDraft withClient(Client? c) => CheckoutDraft(lines: lines, client: c);
+  int _clampTicketDiscount(int cents, int pre) =>
+      cents < 0 ? 0 : (cents > pre ? pre : cents);
+
+  CheckoutDraft withLines(List<DraftLine> newLines) {
+    final pre = newLines.fold(0, (int s, DraftLine l) => s + l.lineTotalCents);
+    return CheckoutDraft(
+      lines: newLines,
+      client: client,
+      // keep the ticket discount within the (possibly smaller) new total
+      ticketDiscountCents: _clampTicketDiscount(ticketDiscountCents, pre),
+    );
+  }
+
+  CheckoutDraft withClient(Client? c) =>
+      CheckoutDraft(lines: lines, client: c, ticketDiscountCents: ticketDiscountCents);
+
+  CheckoutDraft withTicketDiscount(int cents) => CheckoutDraft(
+        lines: lines,
+        client: client,
+        ticketDiscountCents: _clampTicketDiscount(cents, preTicketTotalCents),
+      );
 }

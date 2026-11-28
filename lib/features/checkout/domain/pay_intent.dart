@@ -21,6 +21,7 @@ class PayIntent {
     required this.tips,
     required this.totalCents,
     this.clientId,
+    this.ticketDiscountCents = 0,
   });
 
   final String clientTx;
@@ -29,6 +30,10 @@ class PayIntent {
   final List<PayTender> payments;
   final List<PayTip> tips;
   final int totalCents;
+
+  /// Whole-ticket discount in cents (0 when none). Sent to pay_ticket, which
+  /// distributes it pro-rata across lines for commission.
+  final int ticketDiscountCents;
 
   /// The customer attached to the ticket, if any (ticket.client_id). Optional —
   /// walk-in tickets have none.
@@ -42,6 +47,9 @@ class PayIntent {
             'amount': centsToDecimalString(p.appliedCents),
           },
       ];
+
+  /// p_ticket_discount for pay_ticket: the whole-ticket discount as a decimal string.
+  String rpcTicketDiscount() => centsToDecimalString(ticketDiscountCents);
 
   /// p_tips for pay_ticket (standalone tips).
   List<Map<String, dynamic>> rpcTips() => <Map<String, dynamic>>[
@@ -57,6 +65,7 @@ class PayIntent {
         'client_tx': clientTx,
         'opened_by': openedByStaffId,
         'total_cents': totalCents,
+        'ticket_discount_cents': ticketDiscountCents,
         if (clientId != null) 'client_id': clientId,
         'lines': lines.map((l) => l.toJson()).toList(),
         'payments': payments.map((p) => p.toJson()).toList(),
@@ -68,6 +77,7 @@ class PayIntent {
         openedByStaffId: j['opened_by'] as String,
         totalCents: (j['total_cents'] as num).toInt(),
         clientId: j['client_id'] as String?,
+        ticketDiscountCents: (j['ticket_discount_cents'] as num?)?.toInt() ?? 0,
         lines: (j['lines'] as List<dynamic>)
             .map((e) => PayLine.fromJson(e as Map<String, dynamic>))
             .toList(),

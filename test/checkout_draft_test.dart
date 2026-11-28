@@ -42,5 +42,30 @@ void main() {
       expect(draft.totalCents, 0);
       expect(draft.isEmpty, isTrue);
     });
+
+    test('a ticket discount reduces the total and clamps to the line total', () {
+      final draft = CheckoutDraft(lines: [
+        _line('1', 5000, 1, 0), // total 5000
+        _line('2', 2000, 2, 500), // total 3500
+      ]); // preTicketTotal 8500
+      expect(draft.preTicketTotalCents, 8500);
+
+      expect(draft.withTicketDiscount(1000).ticketDiscountCents, 1000);
+      expect(draft.withTicketDiscount(1000).totalCents, 7500);
+      // over-large clamps to the line total (free ticket); negative clamps to 0
+      expect(draft.withTicketDiscount(99999).ticketDiscountCents, 8500);
+      expect(draft.withTicketDiscount(99999).totalCents, 0);
+      expect(draft.withTicketDiscount(-50).ticketDiscountCents, 0);
+    });
+
+    test('removing lines re-clamps the ticket discount to the smaller total', () {
+      final draft = CheckoutDraft(lines: [
+        _line('1', 5000, 1, 0),
+        _line('2', 2000, 2, 500),
+      ]).withTicketDiscount(8000); // most of 8500
+      final fewer = draft.withLines(<DraftLine>[draft.lines.first]); // preTicketTotal 5000
+      expect(fewer.ticketDiscountCents, 5000);
+      expect(fewer.totalCents, 0);
+    });
   });
 }

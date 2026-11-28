@@ -87,6 +87,32 @@ void main() {
       expect(back.lines.single.kind, CatalogKind.service);
       expect(back.payments.single.appliedCents, 5000);
       expect(back.tips.single.method, PaymentMethod.card);
+      expect(back.ticketDiscountCents, 0); // default when none
+    });
+
+    test('ticket discount: rpc decimal string + json round-trip', () {
+      final discounted = PayIntent(
+        clientTx: 'tx-2',
+        openedByStaffId: 'st1',
+        totalCents: 4000,
+        ticketDiscountCents: 1000,
+        lines: const [
+          PayLine(
+            refId: 'svc1',
+            kind: CatalogKind.service,
+            name: 'Cut',
+            unitPriceCents: 5000,
+            qty: 1,
+            lineDiscountCents: 0,
+            performerStaffId: 'st1',
+          ),
+        ],
+        payments: const [PayTender(method: PaymentMethod.cash, appliedCents: 4000)],
+        tips: const <PayTip>[],
+      );
+      expect(discounted.rpcTicketDiscount(), '10.00');
+      expect(intent.rpcTicketDiscount(), '0.00');
+      expect(PayIntent.decode(discounted.encode()).ticketDiscountCents, 1000);
     });
   });
 }

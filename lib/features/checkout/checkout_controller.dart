@@ -91,6 +91,9 @@ class CheckoutDraftController extends Notifier<CheckoutDraft> {
   /// Detach the customer (back to a walk-in ticket).
   void clearClient() => state = state.withClient(null);
 
+  /// Set the whole-ticket discount (cents); clamped to [0, line total].
+  void setTicketDiscount(int cents) => state = state.withTicketDiscount(cents);
+
   void clear() => state = const CheckoutDraft();
 
   // ── helpers ──
