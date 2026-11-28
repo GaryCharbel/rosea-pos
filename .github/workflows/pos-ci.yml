@@ -21,11 +21,16 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          # Pinned so the toolchain doesn't drift under us (an unpinned `stable` is how
+          # we silently picked up framework deprecations + an AGP-min bump before).
+          # Bump deliberately, and re-test, rather than letting CI float.
+          flutter-version: 3.50.1
       - run: flutter pub get
-      # `channel: stable` is unpinned, so a newer Flutter can add framework-level
-      # deprecation `info`s (e.g. material.dart → material_ui) across every file.
-      # Those are advisory churn, not defects — keep them from failing the gate while
-      # warnings, errors, and test failures still block the merge.
+      # Flutter 3.50.1 deprecates `package:flutter/material.dart` in favour of material_ui
+      # (a framework-wide rename). That's advisory churn across every file, not a defect,
+      # and migrating to material_ui is a separate effort — so keep infos non-fatal while
+      # warnings, errors, and test failures still block the merge. With the version now
+      # pinned, these infos are stable and known (not surprise drift).
       - run: flutter analyze --no-fatal-infos
       - run: flutter test --dart-define-from-file=env/test.json
       - name: Notify Discord
@@ -48,6 +53,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.50.1
       - run: flutter pub get
       - name: Pre-install Android NDK (retry — dodges transient corrupt downloads)
         run: |
@@ -72,6 +78,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.50.1
       - run: flutter pub get
       - run: flutter build windows --debug
 
