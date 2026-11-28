@@ -88,4 +88,73 @@ void main() {
     await tester.pumpAndSettle();
     expect(cancelResult, isNull);
   });
+
+  testWidgets('toggling Amount→Percent does not change the applied discount', (tester) async {
+    int? result;
+    await _open(tester, gross: 10000, onResult: (v) => result = v);
+    await tester.enterText(find.byType(TextField), '33.33'); // 33.33 off 100.00
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Percent %'));
+    await tester.pumpAndSettle();
+    // Shows the equivalent percent, and Apply keeps the exact cents (used to drop to 3330).
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, '33.33');
+    await tester.tap(find.widgetWithText(FilledButton, 'Apply'));
+    await tester.pumpAndSettle();
+    expect(result, 3333);
+  });
+
+  testWidgets('100% off makes the line free (exactly gross)', (tester) async {
+    int? result;
+    await _open(tester, gross: 12345, onResult: (v) => result = v);
+    await tester.tap(find.text('Percent %'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '100');
+    await tester.pumpAndSettle();
+    expect(find.text('Line becomes 0.00'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Apply'));
+    await tester.pumpAndSettle();
+    expect(result, 12345);
+  });
+
+  testWidgets('percent rounds half-up with integer math', (tester) async {
+    int? result;
+    await _open(tester, gross: 333, onResult: (v) => result = v); // 333 * 50% = 166.5 -> 167
+    await tester.tap(find.text('Percent %'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '50');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Apply'));
+    await tester.pumpAndSettle();
+    expect(result, 167);
+  });
+
+  testWidgets('percent rejects a malformed value instead of applying something bogus',
+      (tester) async {
+    await _open(tester, gross: 10000, onResult: (_) {});
+    await tester.tap(find.text('Percent %'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '1.2.3');
+    await tester.pump();
+    final text = tester.widget<TextField>(find.byType(TextField)).controller!.text;
+    expect(text.split('.').length > 2, isFalse); // never a second dot
+    expect(find.text('Line becomes 100.00'), findsOneWidget); // no discount applied
+  });
+
+  testWidgets('opens with the current discount pre-filled and keeps it on Apply',
+      (tester) async {
+    int? result;
+    await _open(tester, gross: 10000, current: 2000, onResult: (v) => result = v);
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, '20.00');
+    expect(find.text('Line becomes 80.00'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Apply'));
+    await tester.pumpAndSettle();
+    expect(result, 2000);
+  });
+
+  testWidgets('an oversized amount does not crash the dialog', (tester) async {
+    await _open(tester, gross: 10000, onResult: (_) {});
+    await tester.enterText(find.byType(TextField), '9' * 30);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
 }
