@@ -49,34 +49,47 @@ class _DiscountDialog extends StatefulWidget {
 
 class _DiscountDialogState extends State<_DiscountDialog> {
   _Mode _mode = _Mode.amount;
+  // The authoritative discount in cents. The field is only an input surface; keeping
+  // the resolved cents here means toggling Amount <-> Percent never changes the applied
+  // discount on its own — only an actual edit does.
+  late int _cents = _clamp(widget.currentDiscountCents);
   late final TextEditingController _controller = TextEditingController(
-    text: widget.currentDiscountCents > 0
-        ? centsToDecimalString(widget.currentDiscountCents)
-        : '',
+    text: widget.currentDiscountCents > 0 ? centsToDecimalString(_cents) : '',
   );
 
   int _clamp(int cents) => cents < 0 ? 0 : (cents > widget.grossCents ? widget.grossCents : cents);
 
-  /// The discount the current field value resolves to, in cents.
-  int _resolveCents() {
-    if (_mode == _Mode.amount) return _clamp(centsFromServer(_controller.text));
-    final pct = double.tryParse(_controller.text.trim()) ?? 0;
-    return _clamp((widget.grossCents * pct / 100).round());
+  /// Recompute [_cents] from the current field + mode, with integer-only math so the
+  /// result is exact (no float drift, never a cent off).
+  void _recompute() {
+    if (_mode == _Mode.amount) {
+      _cents = _clamp(centsFromServer(_controller.text));
+      return;
+    }
+    // Percent: parse like money (two decimals) into basis points — "33.33" -> 3333 bp,
+    // where 10000 bp = 100%. cents = round(gross * bp / 10000), half-up, all integer.
+    final bp = centsFromServer(_controller.text);
+    _cents = _clamp(((widget.grossCents * bp) + 5000) ~/ 10000);
   }
 
   void _setMode(_Mode mode) {
     if (mode == _mode) return;
-    // Convert the shown value so the discount stays equivalent across the toggle.
-    final cents = _resolveCents();
-    if (mode == _Mode.percent) {
-      final pct = widget.grossCents > 0 ? cents / widget.grossCents * 100 : 0.0;
-      _controller.text = pct <= 0
-          ? ''
-          : (pct == pct.roundToDouble() ? pct.round().toString() : pct.toStringAsFixed(1));
-    } else {
-      _controller.text = cents > 0 ? centsToDecimalString(cents) : '';
-    }
-    setState(() => _mode = mode);
+    setState(() {
+      _mode = mode;
+      // Reformat the field to show the SAME discount in the new unit; _cents is left
+      // untouched, so Apply keeps its value unless the cashier edits the field.
+      if (mode == _Mode.percent) {
+        if (_cents <= 0 || widget.grossCents <= 0) {
+          _controller.text = '';
+        } else {
+          final bp = ((_cents * 10000) + widget.grossCents ~/ 2) ~/ widget.grossCents;
+          _controller.text =
+              bp % 100 == 0 ? (bp ~/ 100).toString() : (bp / 100).toStringAsFixed(2);
+        }
+      } else {
+        _controller.text = _cents > 0 ? centsToDecimalString(_cents) : '';
+      }
+    });
   }
 
   @override
@@ -87,7 +100,7 @@ class _DiscountDialogState extends State<_DiscountDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final becomes = widget.grossCents - _resolveCents();
+    final becomes = widget.grossCents - _cents;
     final isPercent = _mode == _Mode.percent;
 
     return Dialog(
@@ -126,9 +139,20 @@ class _DiscountDialogState extends State<_DiscountDialog> {
                 autofocus: true,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: isPercent
-                    ? <TextInputFormatter>[FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))]
+                    ? <TextInputFormatter>[
+                        // <=3 whole digits + <=2 decimals, one dot — rejects a second
+                        // dot (which used to silently resolve to 0%) and caps the length
+                        // so the parse can't overflow.
+                        TextInputFormatter.withFunction((oldValue, newValue) {
+                          final t = newValue.text;
+                          if (t.isEmpty) return newValue;
+                          return RegExp(r'^\d{0,3}(\.\d{0,2})?$').hasMatch(t)
+                              ? newValue
+                              : oldValue;
+                        }),
+                      ]
                     : moneyInputFormatters(),
-                onChanged: (_) => setState(() {}),
+                onChanged: (_) => setState(_recompute),
                 style: const TextStyle(color: _ink, fontSize: 28, fontWeight: FontWeight.w800),
                 decoration: InputDecoration(
                   prefixText: isPercent ? null : '− \$ ',
@@ -173,7 +197,7 @@ class _DiscountDialogState extends State<_DiscountDialog> {
                       backgroundColor: _pink,
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     ),
-                    onPressed: () => Navigator.of(context).pop(_resolveCents()),
+                    onPressed: () => Navigator.of(context).pop(_cents),
                     child: const Text('Apply',
                         style: TextStyle(color: _ink, fontWeight: FontWeight.w800)),
                   ),

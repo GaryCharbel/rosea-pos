@@ -62,6 +62,23 @@ void main() {
     expect(result, 5000);
   });
 
+  testWidgets('card: overpay caps at the remaining and says so', (tester) async {
+    int? result;
+    await _open(tester, PaymentMethod.card, 7900, onResult: (v) => result = v);
+
+    await tester.enterText(find.byType(TextField), '100.00');
+    await tester.pumpAndSettle();
+    // Card can't exceed the remaining — the preview + button show the capped amount,
+    // not the entered 100.00.
+    expect(find.textContaining('only 79.00 charged'), findsOneWidget);
+    expect(find.text('Add 79.00'), findsOneWidget);
+    expect(find.text('Add 100.00'), findsNothing);
+
+    await tester.tap(find.text('Add 79.00'));
+    await tester.pumpAndSettle();
+    expect(result, 7900); // capped at the remaining, not 10000
+  });
+
   testWidgets('cancel returns null', (tester) async {
     int? result;
     var returned = false;
