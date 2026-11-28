@@ -38,20 +38,28 @@ class SupabaseClientRepo implements ClientRepo {
 
   @override
   Future<Client> quickAdd({required String name, String? phone}) async {
-    // NOTE: not idempotent — if the insert succeeds but the response is lost and the
-    // cashier retries, a duplicate client is created. The UI guards against a double
-    // tap; a durable fix (a client_tx key or a name+phone unique constraint) is a
-    // rosea-repo follow-up.
     final trimmedPhone = phone?.trim();
-    final row = await _client
-        .from('client')
-        .insert(<String, dynamic>{
-          'name': name.trim(),
-          if (trimmedPhone != null && trimmedPhone.isNotEmpty) 'phone': trimmedPhone,
-        })
-        .select('id, name, phone')
-        .single();
-    return Client.fromMap(Map<String, dynamic>.from(row));
+    try {
+      final row = await _client
+          .from('client')
+          .insert(<String, dynamic>{
+            'name': name.trim(),
+            if (trimmedPhone != null && trimmedPhone.isNotEmpty) 'phone': trimmedPhone,
+          })
+          .select('id, name, phone')
+          .single();
+      return Client.fromMap(Map<String, dynamic>.from(row));
+    } on PostgrestException catch (e) {
+      // 23505 = the normalized phone already exists — a retry after a lost response, or
+      // a genuine duplicate. Return the existing client instead of failing, so a
+      // quick-add with a phone is idempotent. (Phone-less walk-ins have no unique key,
+      // so they can't collide and this branch doesn't apply.)
+      if (e.code == '23505' && trimmedPhone != null && trimmedPhone.isNotEmpty) {
+        final existing = await search(trimmedPhone);
+        if (existing.isNotEmpty) return existing.first;
+      }
+      rethrow;
+    }
   }
 }
 
