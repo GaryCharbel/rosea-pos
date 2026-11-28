@@ -352,7 +352,7 @@ class _PaymentArea extends ConsumerWidget {
         customBorder: const StadiumBorder(),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Text(label,
               style: const TextStyle(color: _ink, fontWeight: FontWeight.w700, fontSize: 13.5)),
         ),
@@ -564,28 +564,42 @@ class _LineTile extends ConsumerWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        _stepBtn(Icons.remove, () => ctrl.decrement(line.id)),
+        _stepBtn(Icons.remove, () => ctrl.decrement(line.id),
+            // At qty 1 the minus removes the line — label it honestly for a11y.
+            tooltip: line.qty <= 1 ? 'Remove item' : 'Decrease quantity'),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Text('${line.qty}',
               style: const TextStyle(color: _ink, fontWeight: FontWeight.w800, fontSize: 16)),
         ),
-        _stepBtn(Icons.add, () => ctrl.increment(line.id)),
+        _stepBtn(Icons.add, () => ctrl.increment(line.id), tooltip: 'Increase quantity'),
       ],
     );
   }
 
-  Widget _stepBtn(IconData icon, VoidCallback onTap) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(5),
-        decoration: BoxDecoration(
-          color: const Color(0xFF241A2A),
-          borderRadius: BorderRadius.circular(8),
+  Widget _stepBtn(IconData icon, VoidCallback onTap, {required String tooltip}) {
+    // 40×40 tap target (Fitts). One a11y label only: the Semantics button carries the
+    // name (the Tooltip is for pointer hover), and the icon is excluded so a screen
+    // reader doesn't announce the label twice.
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        label: tooltip,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onTap,
+          child: Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFF241A2A),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: ExcludeSemantics(child: Icon(icon, size: 20, color: _ink)),
+          ),
         ),
-        child: Icon(icon, size: 18, color: _ink),
       ),
     );
   }
