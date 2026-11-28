@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors/app_error.dart';
 import '../../checkout/checkout_controller.dart';
 import '../client.dart';
 import '../client_repo.dart';
@@ -21,7 +24,17 @@ const List<Color> _avatarTints = <Color>[
   Color(0xFF6E5A2E), // gold-brown
   Color(0xFF3A6E4A), // green
 ];
-Color _avatarColor(String id) => _avatarTints[id.hashCode.abs() % _avatarTints.length];
+// A stable hash of the id — String.hashCode isn't guaranteed stable across runs or
+// platforms, so a client would otherwise change avatar colour between launches.
+int _stableHash(String s) {
+  var h = 0;
+  for (final c in s.codeUnits) {
+    h = (h * 31 + c) & 0x7fffffff;
+  }
+  return h;
+}
+
+Color _avatarColor(String id) => _avatarTints[_stableHash(id) % _avatarTints.length];
 
 /// Round initials avatar for a client.
 class ClientAvatar extends StatelessWidget {
@@ -154,6 +167,7 @@ class _AddCustomerSheetState extends ConsumerState<AddCustomerSheet> {
   final TextEditingController _name = TextEditingController();
   final TextEditingController _phone = TextEditingController();
   late Future<List<Client>> _results;
+  Timer? _debounce;
   bool _saving = false;
   String? _saveError;
 
@@ -165,14 +179,22 @@ class _AddCustomerSheetState extends ConsumerState<AddCustomerSheet> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _search.dispose();
     _name.dispose();
     _phone.dispose();
     super.dispose();
   }
 
+  /// Debounced so a request doesn't fire on every keystroke (and the search term
+  /// doesn't hit the network more than it must).
+  void _onSearchChanged(String q) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () => _runSearch(q));
+  }
+
   void _runSearch(String q) {
-    setState(() => _results = ref.read(clientRepoProvider).search(q));
+    if (mounted) setState(() => _results = ref.read(clientRepoProvider).search(q));
   }
 
   Future<void> _quickAdd() async {
@@ -189,11 +211,13 @@ class _AddCustomerSheetState extends ConsumerState<AddCustomerSheet> {
       final created =
           await ref.read(clientRepoProvider).quickAdd(name: name, phone: _phone.text);
       if (mounted) Navigator.of(context).pop(created);
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
           _saving = false;
-          _saveError = "Couldn't save the client. Check your connection and try again.";
+          // Actionable + specific to the real failure (permission vs network vs other)
+          // instead of always blaming the connection.
+          _saveError = mapDataError(e).message;
         });
       }
     }
@@ -232,7 +256,7 @@ class _AddCustomerSheetState extends ConsumerState<AddCustomerSheet> {
                 child: TextField(
                   controller: _search,
                   autofocus: true,
-                  onChanged: _runSearch,
+                  onChanged: _onSearchChanged,
                   style: const TextStyle(color: _ink),
                   decoration: InputDecoration(
                     hintText: 'Search clients',
@@ -270,9 +294,12 @@ class _AddCustomerSheetState extends ConsumerState<AddCustomerSheet> {
           );
         }
         if (snap.hasError) {
+          final err = mapDataError(snap.error!);
           return _message(
-            "Couldn't load clients. Check your connection and try again.",
-            action: ('Try again', () => _runSearch(_search.text)),
+            err.message,
+            // Only offer a retry when retrying could actually help (not for a
+            // permission denial, where re-running the same query won't).
+            action: err is AuthError ? null : ('Try again', () => _runSearch(_search.text)),
           );
         }
         final list = snap.data ?? const <Client>[];
