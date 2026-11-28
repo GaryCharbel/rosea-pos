@@ -6,14 +6,42 @@ import '../catalog_repo.dart';
 import '../domain/catalog.dart';
 
 const _bg = Color(0xFF0C0A0F);
-const _card = Color(0xFF1A141F);
+const _rail = Color(0xFF141019);
 const _ink = Color(0xFFF5EDF1);
 const _muted = Color(0xFFB8A9B0);
 const _pink = Color(0xFFED3D8C);
+const _line = Color(0xFF2E2333);
+// Offline/stale banner — amber (p.7), distinct from the pink accent.
+const _amberBg = Color(0xFF2A2212);
+const _amber = Color(0xFFE7A93B);
 
-/// The cached catalog grid, embeddable inside the checkout screen (no Scaffold of its
-/// own). Renders from the local Drift cache (read-through) and shows a background-sync
-/// progress bar + an actionable "showing last saved copy / Retry" banner.
+/// Below this grid-area width we switch the category selector from a vertical
+/// icon rail (desktop/tablet) to a horizontal chip strip (phone) — matching the
+/// delivered mockups (p.7 vs p.4).
+const double _railBreakpoint = 560;
+
+/// Per-category tile tints (Rosea dark-pink family — not Lightspeed blue). Indexed by
+/// the category's position so each category reads as its own colour block.
+const List<Color> _tints = <Color>[
+  Color(0xFF3A2430), // pink-plum
+  Color(0xFF342A42), // indigo-plum
+  Color(0xFF3A3326), // gold-brown
+  Color(0xFF26323A), // slate-teal
+  Color(0xFF3A2A2A), // warm clay
+  Color(0xFF2E2333), // neutral plum
+];
+Color _tintFor(int i) => _tints[i % _tints.length];
+
+IconData _iconFor(CatalogKind kind) =>
+    kind == CatalogKind.product ? Icons.shopping_bag_outlined : Icons.content_cut;
+
+/// The currently-selected category section id (null → first section).
+final selectedSectionIdProvider = StateProvider<String?>((ref) => null);
+
+/// Checkout catalog area: a category selector (vertical rail on wide screens, a
+/// horizontal chip strip on narrow ones) + the tinted item grid for the selected
+/// category. Renders from the read-through cache; shows background-sync progress +
+/// an actionable "offline — showing last saved copy / Retry" banner at the bottom.
 class CatalogGridView extends ConsumerWidget {
   const CatalogGridView({super.key, required this.onItemTap});
 
@@ -28,11 +56,6 @@ class CatalogGridView extends ConsumerWidget {
       children: <Widget>[
         if (sync is SyncInProgress)
           const LinearProgressIndicator(minHeight: 2, color: _pink, backgroundColor: _bg),
-        if (sync is SyncFailed)
-          _SyncBanner(
-            message: sync.message,
-            onRetry: () => ref.read(catalogSyncProvider.notifier).refresh(),
-          ),
         Expanded(
           child: catalog.when(
             loading: () => const Center(child: CircularProgressIndicator(color: _pink)),
@@ -46,12 +69,281 @@ class CatalogGridView extends ConsumerWidget {
                 ),
               ),
             ),
-            data: (Catalog c) => c.isEmpty
-                ? const _EmptyCatalog()
-                : _CatalogList(catalog: c, onTap: (item) => onItemTap(context, item)),
+            data: (Catalog c) =>
+                c.isEmpty ? const _EmptyCatalog() : _RailAndGrid(catalog: c, onItemTap: onItemTap),
           ),
         ),
+        // Offline/stale banner sits at the bottom of the grid area (p.7).
+        if (sync is SyncFailed)
+          _SyncBanner(
+            message: sync.message,
+            onRetry: () => ref.read(catalogSyncProvider.notifier).refresh(),
+          ),
       ],
+    );
+  }
+}
+
+class _RailAndGrid extends ConsumerWidget {
+  const _RailAndGrid({required this.catalog, required this.onItemTap});
+  final Catalog catalog;
+  final void Function(BuildContext, CatalogItem) onItemTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sections = catalog.sections;
+    final selectedId = ref.watch(selectedSectionIdProvider);
+    // indexWhere returns -1 when the selected id is gone (e.g. after a catalog
+    // refresh); fall back to the first section. (sections is non-empty here — the
+    // caller renders _EmptyCatalog otherwise.)
+    final int index = sections.indexWhere((s) => s.id == selectedId);
+    final int current = index == -1 ? 0 : index;
+    final section = sections[current];
+    void select(String id) => ref.read(selectedSectionIdProvider.notifier).state = id;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= _railBreakpoint;
+        final grid = _ItemGrid(section: section, tint: _tintFor(current), onTap: (i) => onItemTap(context, i));
+
+        if (wide) {
+          // Vertical icon rail + titled grid (desktop/tablet — p.7).
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              SizedBox(
+                width: 104,
+                child: _CategoryRail(sections: sections, selectedIndex: current, onSelect: select),
+              ),
+              const VerticalDivider(width: 1, color: _line),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    _GridHeader(section: section),
+                    Expanded(child: grid),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }
+        // Horizontal chip strip + grid (phone — p.4).
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _CategoryChips(sections: sections, selectedIndex: current, onSelect: select),
+            const Divider(height: 1, color: _line),
+            Expanded(child: grid),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Wide-screen header above the grid: "Hair · 8 items" (p.7).
+class _GridHeader extends StatelessWidget {
+  const _GridHeader({required this.section});
+  final CatalogSection section;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = section.items.length;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: <Widget>[
+          Expanded(
+            child: Text(
+              section.title,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: _ink, fontWeight: FontWeight.w800, fontSize: 22),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text('$n ${n == 1 ? 'item' : 'items'}',
+              style: const TextStyle(color: _muted, fontWeight: FontWeight.w600, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoryRail extends StatelessWidget {
+  const _CategoryRail({required this.sections, required this.selectedIndex, required this.onSelect});
+  final List<CatalogSection> sections;
+  final int selectedIndex;
+  final void Function(String id) onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: _rail,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: sections.length,
+        itemBuilder: (context, i) {
+          final s = sections[i];
+          final selected = i == selectedIndex;
+          return InkWell(
+            onTap: () => onSelect(s.id),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+              decoration: BoxDecoration(
+                color: selected ? _tintFor(i) : Colors.transparent,
+                border: Border(
+                  left: BorderSide(color: selected ? _pink : Colors.transparent, width: 3),
+                ),
+              ),
+              child: Column(
+                children: <Widget>[
+                  Icon(_iconFor(s.kind), size: 22, color: selected ? _pink : _muted),
+                  const SizedBox(height: 6),
+                  Text(
+                    s.title,
+                    maxLines: 2,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected ? _ink : _muted,
+                      fontSize: 11.5,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                      height: 1.1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Narrow-screen horizontal category selector (p.4). Scrolls internally — never
+/// causes the page itself to scroll horizontally.
+class _CategoryChips extends StatelessWidget {
+  const _CategoryChips({required this.sections, required this.selectedIndex, required this.onSelect});
+  final List<CatalogSection> sections;
+  final int selectedIndex;
+  final void Function(String id) onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: _rail,
+      height: 60,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        itemCount: sections.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final s = sections[i];
+          final selected = i == selectedIndex;
+          return InkWell(
+            onTap: () => onSelect(s.id),
+            borderRadius: BorderRadius.circular(999),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected ? _tintFor(i) : Colors.transparent,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: selected ? _pink : _line, width: 1.5),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Icon(_iconFor(s.kind), size: 16, color: selected ? _pink : _muted),
+                  const SizedBox(width: 7),
+                  Text(
+                    s.title,
+                    style: TextStyle(
+                      color: selected ? _ink : _muted,
+                      fontSize: 14,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ItemGrid extends StatelessWidget {
+  const _ItemGrid({required this.section, required this.tint, required this.onTap});
+  final CatalogSection section;
+  final Color tint;
+  final void Function(CatalogItem) onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(14),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 200,
+        mainAxisExtent: 104,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: section.items.length,
+      itemBuilder: (context, i) => _ItemTile(item: section.items[i], tint: tint, onTap: onTap),
+    );
+  }
+}
+
+class _ItemTile extends StatelessWidget {
+  const _ItemTile({required this.item, required this.tint, required this.onTap});
+  final CatalogItem item;
+  final Color tint;
+  final void Function(CatalogItem) onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: '${item.name}, ${formatCents(item.priceCents)}',
+      child: Material(
+        color: tint,
+        elevation: 2,
+        shadowColor: Colors.black,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: () => onTap(item),
+          borderRadius: BorderRadius.circular(14),
+          child: ExcludeSemantics(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Text(
+                    item.name,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: _ink, fontWeight: FontWeight.w700, fontSize: 14),
+                  ),
+                  Text(
+                    formatCents(item.priceCents),
+                    // Pink price to match the reference tiles (p.4 / p.7).
+                    style: const TextStyle(color: _pink, fontWeight: FontWeight.w900, fontSize: 18),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -64,20 +356,23 @@ class _SyncBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFF2A1420),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
-        child: Row(
-          children: <Widget>[
-            const Icon(Icons.wifi_off, color: _pink, size: 18),
-            const SizedBox(width: 10),
-            Expanded(child: Text(message, style: const TextStyle(color: _ink, fontSize: 13))),
-            TextButton(
-              onPressed: onRetry,
-              child: const Text('Retry',
-                  style: TextStyle(color: _pink, fontWeight: FontWeight.w800)),
-            ),
-          ],
+      color: _amberBg,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+          child: Row(
+            children: <Widget>[
+              const Icon(Icons.wifi_off, color: _amber, size: 18),
+              const SizedBox(width: 10),
+              Expanded(child: Text(message, style: const TextStyle(color: _ink, fontSize: 13))),
+              TextButton(
+                onPressed: onRetry,
+                child: const Text('Retry',
+                    style: TextStyle(color: _amber, fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -95,95 +390,6 @@ class _EmptyCatalog extends StatelessWidget {
           'No services or products yet. Add them in the backoffice, then pull to refresh.',
           textAlign: TextAlign.center,
           style: TextStyle(color: _muted),
-        ),
-      ),
-    );
-  }
-}
-
-class _CatalogList extends StatelessWidget {
-  const _CatalogList({required this.catalog, required this.onTap});
-  final Catalog catalog;
-  final void Function(CatalogItem) onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      itemCount: catalog.sections.length,
-      itemBuilder: (BuildContext context, int i) {
-        final section = catalog.sections[i];
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(2, 14, 2, 10),
-              child: Text(
-                section.title.toUpperCase(),
-                style: const TextStyle(
-                  color: _muted,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8,
-                ),
-              ),
-            ),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: <Widget>[
-                for (final item in section.items)
-                  _ItemCard(item: item, onTap: () => onTap(item)),
-              ],
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _ItemCard extends StatelessWidget {
-  const _ItemCard({required this.item, required this.onTap});
-  final CatalogItem item;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: '${item.name}, ${formatCents(item.priceCents)}',
-      child: Material(
-        color: _card,
-        elevation: 3,
-        shadowColor: Colors.black,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: ExcludeSemantics(
-            child: Container(
-              width: 168,
-              height: 108,
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: <Widget>[
-                  Text(
-                    item.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: _ink, fontWeight: FontWeight.w700, fontSize: 15),
-                  ),
-                  Text(
-                    formatCents(item.priceCents),
-                    style: const TextStyle(color: _pink, fontWeight: FontWeight.w800, fontSize: 18),
-                  ),
-                ],
-              ),
-            ),
-          ),
         ),
       ),
     );

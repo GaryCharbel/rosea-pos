@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/money/money.dart';
+import '../../auth/session_controller.dart';
 import '../../catalog/domain/catalog.dart';
 import '../../catalog/ui/catalog_grid_view.dart';
 import '../../staff/staff_repo.dart';
@@ -26,6 +27,8 @@ class CheckoutScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final active = ref.watch(activeStaffProvider);
+    final session = ref.watch(sessionProvider);
+    final isOwner = session is Authenticated && session.isOwner;
 
     return Scaffold(
       backgroundColor: _bg,
@@ -34,6 +37,7 @@ class CheckoutScreen extends ConsumerWidget {
         foregroundColor: _ink,
         title: const Text('Checkout', style: TextStyle(fontWeight: FontWeight.w800)),
         actions: <Widget>[
+          // The sales screen is home; everything else lives here as options.
           TextButton.icon(
             onPressed: () => context.push('/performer'),
             icon: const Icon(Icons.badge_outlined, size: 18, color: _pink),
@@ -42,7 +46,30 @@ class CheckoutScreen extends ConsumerWidget {
               style: const TextStyle(color: _ink, fontWeight: FontWeight.w700),
             ),
           ),
-          const SizedBox(width: 8),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, color: _ink),
+            color: const Color(0xFF1A141F),
+            onSelected: (v) {
+              switch (v) {
+                case 'cashup':
+                  context.push('/cashup');
+                case 'signout':
+                  ref.read(sessionProvider.notifier).signOut();
+              }
+            },
+            itemBuilder: (context) => <PopupMenuEntry<String>>[
+              if (isOwner)
+                const PopupMenuItem<String>(
+                  value: 'cashup',
+                  child: Text('Cash-up & commission', style: TextStyle(color: _ink)),
+                ),
+              const PopupMenuItem<String>(
+                value: 'signout',
+                child: Text('Sign out', style: TextStyle(color: _ink)),
+              ),
+            ],
+          ),
+          const SizedBox(width: 4),
         ],
       ),
       body: LayoutBuilder(
