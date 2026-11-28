@@ -12,7 +12,17 @@ const List<Color> _avatarTints = <Color>[
   Color(0xFF6E5A2E), // gold-brown
   Color(0xFF3A6E4A), // green
 ];
-Color _avatarColor(String id) => _avatarTints[id.hashCode.abs() % _avatarTints.length];
+// A stable hash of the id — String.hashCode isn't guaranteed stable across runs or
+// platforms, so a performer would otherwise change avatar colour between launches.
+int _stableHash(String s) {
+  var h = 0;
+  for (final c in s.codeUnits) {
+    h = (h * 31 + c) & 0x7fffffff;
+  }
+  return h;
+}
+
+Color _avatarColor(String id) => _avatarTints[_stableHash(id) % _avatarTints.length];
 
 String _initials(String name) {
   final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();

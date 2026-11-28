@@ -39,6 +39,28 @@ void main() {
     expect(find.text('Total commission'), findsOneWidget);
   });
 
+  testWidgets('shows the Tips KPI and a takings bar across methods', (tester) async {
+    const multi = CashUp(
+      commissionByStaff: [StaffCommission(staffName: 'Lea', amountCents: 5000)],
+      takingsByMethod: {'cash': 6000, 'card': 4000},
+      tipTotalCents: 1500,
+    );
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        sessionProvider.overrideWith(_OwnerSession.new),
+        cashUpProvider.overrideWith((ref) async => multi),
+      ],
+      child: const MaterialApp(home: CashUpScreen()),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('TIPS'), findsOneWidget); // the Tips KPI card
+    expect(find.text('Cash'), findsOneWidget);
+    expect(find.text('Card'), findsOneWidget);
+    // The takings bar sizes itself against the sum of the shown methods — no crash.
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('non-owner is gated out', (tester) async {
     await tester.pumpWidget(ProviderScope(
       overrides: [sessionProvider.overrideWith(_StaffSession.new)],
