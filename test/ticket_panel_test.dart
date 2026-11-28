@@ -83,9 +83,28 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
+    // Both steppers must meet the comfortable 40x40 target.
     final inc = tester.getSize(find.byTooltip('Increase quantity'));
     expect(inc.width, greaterThanOrEqualTo(40));
     expect(inc.height, greaterThanOrEqualTo(40));
+    final dec = tester.getSize(find.byTooltip('Decrease quantity'));
+    expect(dec.width, greaterThanOrEqualTo(40));
+    expect(dec.height, greaterThanOrEqualTo(40));
+  });
+
+  testWidgets('the minus button is labelled "Remove item" once qty reaches 1',
+      (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [checkoutDraftProvider.overrideWith(_Seeded.new)], // seeds qty 2
+      child: const MaterialApp(home: Scaffold(body: TicketPanel())),
+    ));
+    await tester.pumpAndSettle();
+
+    // qty 2 -> "Decrease quantity"; tapping it down to 1 relabels it to "Remove item".
     expect(find.byTooltip('Decrease quantity'), findsOneWidget);
+    await tester.tap(find.byTooltip('Decrease quantity'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Remove item'), findsOneWidget);
+    expect(find.byTooltip('Decrease quantity'), findsNothing);
   });
 }

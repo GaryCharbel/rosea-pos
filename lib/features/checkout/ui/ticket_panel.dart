@@ -564,7 +564,9 @@ class _LineTile extends ConsumerWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        _stepBtn(Icons.remove, () => ctrl.decrement(line.id), tooltip: 'Decrease quantity'),
+        _stepBtn(Icons.remove, () => ctrl.decrement(line.id),
+            // At qty 1 the minus removes the line — label it honestly for a11y.
+            tooltip: line.qty <= 1 ? 'Remove item' : 'Decrease quantity'),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Text('${line.qty}',
@@ -576,21 +578,27 @@ class _LineTile extends ConsumerWidget {
   }
 
   Widget _stepBtn(IconData icon, VoidCallback onTap, {required String tooltip}) {
-    // 40×40 tap target (Fitts): comfortable to hit at the counter, with an a11y label.
+    // 40×40 tap target (Fitts). One a11y label only: the Semantics button carries the
+    // name (the Tooltip is for pointer hover), and the icon is excluded so a screen
+    // reader doesn't announce the label twice.
     return Tooltip(
       message: tooltip,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: onTap,
-        child: Container(
-          width: 40,
-          height: 40,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: const Color(0xFF241A2A),
-            borderRadius: BorderRadius.circular(10),
+      child: Semantics(
+        button: true,
+        label: tooltip,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onTap,
+          child: Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFF241A2A),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: ExcludeSemantics(child: Icon(icon, size: 20, color: _ink)),
           ),
-          child: Icon(icon, size: 20, color: _ink, semanticLabel: tooltip),
         ),
       ),
     );
