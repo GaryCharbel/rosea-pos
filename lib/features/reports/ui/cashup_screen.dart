@@ -151,10 +151,19 @@ class _Body extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cur = cashUp.currency;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: <Widget>[
         _kpiRow(cashUp),
+        const SizedBox(height: 10),
+        Center(
+          child: Text(
+            '${cashUp.ticketCount} ${cashUp.ticketCount == 1 ? 'ticket' : 'tickets'}'
+            '${cashUp.ticketCount > 0 ? ' · avg ${formatCents(cashUp.avgTicketCents, currency: cur)}' : ''}',
+            style: const TextStyle(color: _muted, fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+        ),
         const SizedBox(height: 18),
         _sectionLabel('TAKINGS BY METHOD'),
         if (cashUp.takingsByMethod.isEmpty)
@@ -169,7 +178,13 @@ class _Body extends StatelessWidget {
         ],
         const SizedBox(height: 18),
         _sectionLabel('COMMISSION BY STAFF'),
-        for (final s in cashUp.commissionByStaff) _row(s.staffName, s.amountCents),
+        if (cashUp.byStaff.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('—', style: TextStyle(color: _muted)),
+          )
+        else
+          for (final s in cashUp.byStaff) _staffRow(s, cur),
         const Divider(height: 24, color: _line),
         _row('Total commission', cashUp.totalCommissionCents, bold: true),
       ],
@@ -233,7 +248,7 @@ class _Body extends StatelessWidget {
           Text(label.toUpperCase(),
               style: const TextStyle(color: _muted, fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
           const SizedBox(height: 8),
-          Text(formatCents(cents),
+          Text(formatCents(cents, currency: cashUp.currency),
               style: TextStyle(color: accent, fontSize: 28, fontWeight: FontWeight.w900)),
         ],
       ),
@@ -253,7 +268,42 @@ class _Body extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: <Widget>[Text(label, style: style), Text(formatCents(cents), style: style)],
+        children: <Widget>[
+          Text(label, style: style),
+          Text(formatCents(cents, currency: cashUp.currency), style: style),
+        ],
+      ),
+    );
+  }
+
+  /// A per-staff cash-up line: name + "rate% · N services · services total" and the
+  /// net commission on the right.
+  Widget _staffRow(StaffRow s, String currency) {
+    final rate = s.ratePercent == s.ratePercent.roundToDouble()
+        ? s.ratePercent.toStringAsFixed(0)
+        : s.ratePercent.toStringAsFixed(1);
+    final svc = '${s.servicesCount} ${s.servicesCount == 1 ? 'service' : 'services'}';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(s.name,
+                    style: const TextStyle(color: _ink, fontWeight: FontWeight.w700, fontSize: 14)),
+                const SizedBox(height: 2),
+                Text('$rate% · $svc · ${formatCents(s.servicesCents, currency: currency)}',
+                    style: const TextStyle(color: _muted, fontSize: 12)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(formatCents(s.commissionCents, currency: currency),
+              style: const TextStyle(color: _ink, fontWeight: FontWeight.w800, fontSize: 14)),
+        ],
       ),
     );
   }
@@ -277,7 +327,7 @@ class _Body extends StatelessWidget {
           Text(_methodLabel(wire),
               style: const TextStyle(color: _ink, fontWeight: FontWeight.w600, fontSize: 14)),
           const Spacer(),
-          Text(formatCents(cents),
+          Text(formatCents(cents, currency: cashUp.currency),
               style: const TextStyle(color: _ink, fontWeight: FontWeight.w800, fontSize: 14)),
         ],
       ),

@@ -16,10 +16,21 @@ class _StaffSession extends SessionController {
   SessionState build() => const Authenticated(userId: 'u2', role: 'staff', staffId: 's1');
 }
 
-final _cashUp = const CashUp(
-  commissionByStaff: [StaffCommission(staffName: 'Lea', amountCents: 5000)],
+const _cashUp = CashUp(
+  currency: 'USD',
   takingsByMethod: {'cash': 5000},
   tipTotalCents: 1000,
+  ticketCount: 1,
+  avgTicketCents: 5000,
+  byStaff: [
+    StaffRow(
+        name: 'Lea',
+        ratePercent: 40,
+        servicesCount: 1,
+        servicesCents: 5000,
+        productsCents: 0,
+        commissionCents: 5000),
+  ],
 );
 
 void main() {
@@ -37,13 +48,27 @@ void main() {
     expect(find.text('Cash'), findsOneWidget);
     expect(find.text('Lea'), findsOneWidget);
     expect(find.text('Total commission'), findsOneWidget);
+    // ticket count + average line, and the salon currency threaded onto the figures
+    expect(find.textContaining('1 ticket'), findsOneWidget);
+    expect(find.textContaining('USD'), findsWidgets);
   });
 
   testWidgets('shows the Tips KPI and a takings bar across methods', (tester) async {
     const multi = CashUp(
-      commissionByStaff: [StaffCommission(staffName: 'Lea', amountCents: 5000)],
+      currency: '',
       takingsByMethod: {'cash': 6000, 'card': 4000},
       tipTotalCents: 1500,
+      ticketCount: 2,
+      avgTicketCents: 5000,
+      byStaff: [
+        StaffRow(
+            name: 'Lea',
+            ratePercent: 40,
+            servicesCount: 2,
+            servicesCents: 10000,
+            productsCents: 0,
+            commissionCents: 5000),
+      ],
     );
     await tester.pumpWidget(ProviderScope(
       overrides: [
