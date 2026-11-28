@@ -24,8 +24,10 @@ Receipt _receipt() => const Receipt(
         ReceiptPayment(method: 'card', amountCents: 20000),
         ReceiptPayment(method: 'cash', amountCents: 10000),
       ],
-      tips: <ReceiptTip>[],
-      tipTotalCents: 0,
+      tips: <ReceiptTip>[
+        ReceiptTip(staffName: 'Maya Khoury', amountCents: 500),
+      ],
+      tipTotalCents: 500,
     );
 
 void main() {
@@ -56,10 +58,11 @@ void main() {
     expect(find.textContaining('Balayage'), findsOneWidget);
     expect(find.textContaining('· −10.00'), findsOneWidget);
 
-    // Payments section with change-given and a tip line.
+    // Payments section with change-given and a per-staff tip line (with its amount).
     expect(find.text('PAYMENTS'), findsOneWidget);
     expect(find.text('Change given'), findsOneWidget);
-    expect(find.text('Tip'), findsOneWidget);
+    expect(find.text('Tip · Maya Khoury'), findsOneWidget);
+    expect(find.text('5.00'), findsOneWidget);
 
     await tester.tap(find.text('Done — new ticket'));
     await tester.pumpAndSettle();
@@ -74,14 +77,50 @@ void main() {
     expect(find.text('Change given'), findsNothing);
   });
 
-  test('fromResult parses line_discount for the receipt tag', () {
+  testWidgets('no tip row at all when there were no tips', (tester) async {
+    const noTips = Receipt(
+      ticketNo: 1,
+      status: 'paid',
+      subtotalCents: 4500,
+      discountCents: 0,
+      totalCents: 4500,
+      salonName: 'Rosea',
+      currency: '',
+      lines: <ReceiptLine>[
+        ReceiptLine(name: 'Cut', performerName: 'Lea', qty: 1, lineTotalCents: 4500),
+      ],
+      payments: <ReceiptPayment>[ReceiptPayment(method: 'cash', amountCents: 4500)],
+      tips: <ReceiptTip>[],
+      tipTotalCents: 0,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: ReceiptDialog(receipt: noTips, onDone: () {})),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Tip'), findsNothing); // no 0.00 tip line
+  });
+
+  test('figures reconcile: subtotal−discount=total, payments−change=total, tips sum', () {
+    final r = _receipt();
+    expect(r.subtotalCents - r.discountCents, r.totalCents);
+    final paid = r.payments.fold<int>(0, (s, p) => s + p.amountCents);
+    const changeGiven = 2100; // card 200 + cash 100 − 21 change = 279 total
+    expect(paid - changeGiven, r.totalCents);
+    expect(r.tips.fold<int>(0, (s, t) => s + t.amountCents), r.tipTotalCents);
+  });
+
+  test('fromResult parses line_discount, defaulting a missing/null one to 0', () {
     final r = Receipt.fromResult(<String, dynamic>{
       'ticket_no': 5,
       'total': '170.00',
       'lines': <dynamic>[
         {'name': 'Balayage', 'line_total': '170.00', 'line_discount': '10.00', 'qty': 1},
+        {'name': 'Cut', 'line_total': '45.00', 'qty': 1}, // no line_discount key
+        {'name': 'Color', 'line_total': '80.00', 'line_discount': null, 'qty': 1},
       ],
     });
-    expect(r.lines.single.lineDiscountCents, 1000);
+    expect(r.lines[0].lineDiscountCents, 1000);
+    expect(r.lines[1].lineDiscountCents, 0);
+    expect(r.lines[2].lineDiscountCents, 0);
   });
 }
