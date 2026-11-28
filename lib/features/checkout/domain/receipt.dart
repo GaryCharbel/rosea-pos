@@ -69,17 +69,22 @@ class ReceiptLine {
     required this.performerName,
     required this.qty,
     required this.lineTotalCents,
+    this.lineDiscountCents = 0,
   });
   final String name;
   final String performerName;
   final num qty;
   final int lineTotalCents;
 
+  /// Per-line discount (for the "· −X" tag on the receipt); 0 when none.
+  final int lineDiscountCents;
+
   static ReceiptLine fromJson(Map<String, dynamic> j) => ReceiptLine(
         name: (j['name'] as String?) ?? '',
         performerName: (j['performer_name'] as String?) ?? '',
         qty: (j['qty'] as num?) ?? 1,
         lineTotalCents: centsFromServer(j['line_total']),
+        lineDiscountCents: centsFromServer(j['line_discount']),
       );
 }
 

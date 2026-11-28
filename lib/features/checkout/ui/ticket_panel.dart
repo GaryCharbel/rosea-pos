@@ -105,11 +105,14 @@ class TicketPanel extends ConsumerWidget {
 
     switch (next) {
       case PaySuccess(:final receipt):
+        // Capture the cash change now — finishTicket() clears the tender draft.
+        final changeGiven = ref.read(paymentDraftProvider).changeCents;
         showDialog<void>(
           context: context,
           barrierDismissible: false,
           builder: (dialogCtx) => ReceiptDialog(
             receipt: receipt,
+            changeGivenCents: changeGiven,
             onDone: () {
               Navigator.of(dialogCtx).pop();
               finishTicket();

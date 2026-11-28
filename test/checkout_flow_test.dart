@@ -98,7 +98,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Take payment'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Receipt #1001'), findsOneWidget);
+    expect(find.textContaining('#1001'), findsOneWidget); // receipt header: "Rosea · #1001"
     expect(gateway.captured?.totalCents, 5000);
     expect(gateway.captured?.openedByStaffId, 'st1');
 
