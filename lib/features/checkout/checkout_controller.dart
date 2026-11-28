@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../catalog/domain/catalog.dart';
+import '../clients/client.dart';
 import '../staff/staff_member.dart';
 import 'domain/checkout_draft.dart';
 
@@ -83,6 +84,12 @@ class CheckoutDraftController extends Notifier<CheckoutDraft> {
     _update(lineId, (l) =>
         l.copyWith(performerStaffId: performer.id, performerName: performer.name));
   }
+
+  /// Attach / change the customer on the ticket.
+  void setClient(Client client) => state = state.withClient(client);
+
+  /// Detach the customer (back to a walk-in ticket).
+  void clearClient() => state = state.withClient(null);
 
   void clear() => state = const CheckoutDraft();
 

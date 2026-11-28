@@ -113,3 +113,29 @@ AppError mapAuthError(Object error) {
     'Something went wrong signing in. Try again — if it keeps happening, tell the owner.',
   );
 }
+
+/// Maps a thrown error from a plain data read/write (e.g. the client search or
+/// quick-add) into an actionable [AppError]. A permission denial (RLS, 42501) tells
+/// the user to sign in as staff — retrying won't help; a transport failure is a
+/// connectivity message the counter can retry; anything else is actionable, never
+/// raw Postgres text.
+AppError mapDataError(Object error) {
+  if (error is PostgrestException) {
+    if (error.code == '42501') {
+      return const AuthError(
+        "You don't have access to this. Sign in with a salon staff account.",
+      );
+    }
+    return const UnexpectedError(
+      "Couldn't complete that. Try again — if it keeps happening, tell the owner.",
+    );
+  }
+  if (_looksLikeNetwork(error)) {
+    return const NetworkError(
+      'Could not reach Rosea. Check your internet connection and try again.',
+    );
+  }
+  return const UnexpectedError(
+    'Something went wrong. Try again — if it keeps happening, tell the owner.',
+  );
+}
