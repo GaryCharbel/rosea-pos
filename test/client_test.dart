@@ -12,7 +12,7 @@ void main() {
     expect(walkin.phone, isNull);
   });
 
-  test('initials take first + last word, uppercased', () {
+  test('initials take first + second word, uppercased', () {
     expect(const Client(id: '1', name: 'Rania Abou Jaoude').initials, 'RA');
     expect(const Client(id: '2', name: 'maya').initials, 'M');
     expect(const Client(id: '3', name: '  ').initials, '?');
