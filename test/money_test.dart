@@ -23,6 +23,34 @@ void main() {
       expect(centsFromServer(null), 0);
       expect(centsFromServer(''), 0);
     });
+
+    test('is total — a pathological / over-long value never throws', () {
+      // A whole part far beyond a 64-bit int used to throw FormatException inside
+      // a dialog's build(); it must now parse to a finite int instead of crashing.
+      final huge = '9' * 40;
+      expect(() => centsFromServer(huge), returnsNormally);
+      expect(() => centsFromServer('$huge.99'), returnsNormally);
+      expect(centsFromServer('abc'), 0);
+    });
+  });
+
+  group('moneyInputFormatters', () {
+    TextEditingValue apply(String oldText, String newText) {
+      final f = moneyInputFormatters().first;
+      return f.formatEditUpdate(
+        TextEditingValue(text: oldText),
+        TextEditingValue(text: newText),
+      );
+    }
+
+    test('accepts a clean decimal and rejects malformed / over-long input', () {
+      expect(apply('12', '12.5').text, '12.5'); // valid
+      expect(apply('1.2', '1.2.3').text, '1.2'); // second dot rejected -> unchanged
+      expect(apply('999', '999.999').text, '999'); // 3rd fraction digit rejected
+      // 9 whole digits ok, a 10th is rejected so centsFromServer can't overflow.
+      expect(apply('123456789', '123456789').text, '123456789');
+      expect(apply('123456789', '1234567890').text, '123456789');
+    });
   });
 
   group('centsToDecimalString / formatCents', () {

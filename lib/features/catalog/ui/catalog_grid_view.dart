@@ -93,8 +93,10 @@ class _RailAndGrid extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sections = catalog.sections;
     final selectedId = ref.watch(selectedSectionIdProvider);
-    final int index =
-        sections.indexWhere((s) => s.id == selectedId).clamp(-1, sections.length - 1);
+    // indexWhere returns -1 when the selected id is gone (e.g. after a catalog
+    // refresh); fall back to the first section. (sections is non-empty here — the
+    // caller renders _EmptyCatalog otherwise.)
+    final int index = sections.indexWhere((s) => s.id == selectedId);
     final int current = index == -1 ? 0 : index;
     final section = sections[current];
     void select(String id) => ref.read(selectedSectionIdProvider.notifier).state = id;
