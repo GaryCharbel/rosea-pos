@@ -30,4 +30,21 @@ void main() {
     // Lea is now the active performer -> her tile shows the selected check.
     expect(find.byIcon(Icons.check_circle), findsOneWidget);
   });
+
+  testWidgets('avatars show first+second-word initials (single word -> one letter)',
+      (WidgetTester tester) async {
+    const StaffMember rania = StaffMember(id: '3', name: 'Rania Abou Jaoude');
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          staffPublicProvider.overrideWith((_) async => <StaffMember>[rania, maya]),
+        ],
+        child: const MaterialApp(home: StaffSwitchScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('RA'), findsOneWidget); // first + second word
+    expect(find.text('M'), findsOneWidget); // single word -> one letter
+  });
 }

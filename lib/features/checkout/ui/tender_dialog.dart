@@ -51,6 +51,8 @@ class _TenderDialogState extends State<_TenderDialog> {
   List<int> _quick() {
     final r = widget.remainingCents;
     if (r <= 0) return const <int>[];
+    // Card/Other can't exceed the remaining, so round-ups above it are misleading.
+    if (widget.method != PaymentMethod.cash) return <int>[r];
     final set = <int>{r};
     for (final step in <int>[500, 1000, 2000]) {
       final up = ((r + step - 1) ~/ step) * step;
@@ -69,15 +71,23 @@ class _TenderDialogState extends State<_TenderDialog> {
   Widget build(BuildContext context) {
     final entered = _entered;
     final remaining = widget.remainingCents;
-    final settles = entered >= remaining;
-    final change = (settles && widget.method == PaymentMethod.cash) ? entered - remaining : 0;
+    final isCash = widget.method == PaymentMethod.cash;
+    // Card/Other can't exceed the remaining — the applied amount caps there (the
+    // PaymentController enforces the same). Cash may exceed and gives change.
+    final applied = isCash ? entered : (entered > remaining ? remaining : entered);
+    final settles = applied >= remaining;
+    final change = (isCash && entered > remaining) ? entered - remaining : 0;
+    final capped = !isCash && entered > remaining;
 
     final (String previewText, Color previewColor) = entered <= 0
         ? ('Enter an amount to add.', _muted)
         : settles
-            ? (change > 0 ? 'Settles the ticket · change ${formatCents(change)}' : 'Settles the ticket',
-                _green)
-            : ('Adds ${formatCents(entered)} · ${formatCents(remaining - entered)} remaining', _muted);
+            ? capped
+                ? ('Settles the ticket · only ${formatCents(remaining)} charged', _green)
+                : change > 0
+                    ? ('Settles the ticket · change ${formatCents(change)}', _green)
+                    : ('Settles the ticket', _green)
+            : ('Adds ${formatCents(applied)} · ${formatCents(remaining - applied)} remaining', _muted);
 
     return Dialog(
       backgroundColor: _panel,
@@ -193,7 +203,7 @@ class _TenderDialogState extends State<_TenderDialog> {
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                     ),
                     onPressed: entered > 0 ? _submit : null,
-                    child: Text(entered > 0 ? 'Add ${formatCents(entered)}' : 'Add',
+                    child: Text(entered > 0 ? 'Add ${formatCents(applied)}' : 'Add',
                         style: const TextStyle(color: _ink, fontWeight: FontWeight.w800, fontSize: 15)),
                   ),
                 ],
@@ -207,7 +217,12 @@ class _TenderDialogState extends State<_TenderDialog> {
 
   void _submit() {
     final v = _entered;
-    if (v > 0) Navigator.of(context).pop(v);
+    if (v <= 0) return;
+    // Card/Other cap at the remaining; cash may exceed (the caller gives change).
+    final out = widget.method == PaymentMethod.cash
+        ? v
+        : (v > widget.remainingCents ? widget.remainingCents : v);
+    Navigator.of(context).pop(out);
   }
 
   Widget _chip(String label, VoidCallback onTap) {

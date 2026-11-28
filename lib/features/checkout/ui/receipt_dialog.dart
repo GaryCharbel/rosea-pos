@@ -99,7 +99,14 @@ class ReceiptDialog extends StatelessWidget {
                     _totalRow(_methodLabel(p.method), p.amountCents),
                   if (changeGivenCents > 0)
                     _totalRow('Change given', changeGivenCents, color: _green),
-                  _totalRow('Tip', receipt.tipTotalCents, muted: true),
+                  // Per-staff tips (the server breaks them out) — hidden entirely when
+                  // there were none, instead of showing a 0.00 line.
+                  if (receipt.tips.isNotEmpty)
+                    for (final t in receipt.tips)
+                      _totalRow(t.staffName.isEmpty ? 'Tip' : 'Tip · ${t.staffName}',
+                          t.amountCents, muted: true)
+                  else if (receipt.tipTotalCents > 0)
+                    _totalRow('Tip', receipt.tipTotalCents, muted: true),
                   if (receipt.receiptFooter != null && receipt.receiptFooter!.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 16),

@@ -8,6 +8,7 @@ import 'package:rosea_pos/features/clients/client.dart';
 import 'package:rosea_pos/features/clients/client_repo.dart';
 import 'package:rosea_pos/features/clients/ui/add_customer.dart';
 import 'package:rosea_pos/features/staff/staff_member.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// In-memory ClientRepo so the picker is driven without Supabase.
 class _FakeClientRepo implements ClientRepo {
@@ -29,6 +30,16 @@ class _FakeClientRepo implements ClientRepo {
     clients = <Client>[...clients, c];
     return c;
   }
+}
+
+/// A repo whose calls always throw, to drive the error states.
+class _ThrowingClientRepo implements ClientRepo {
+  _ThrowingClientRepo(this.error);
+  final Object error;
+  @override
+  Future<List<Client>> search(String query) async => throw error;
+  @override
+  Future<Client> quickAdd({required String name, String? phone}) async => throw error;
 }
 
 Widget _host({required List<Override> overrides, required Widget child}) => ProviderScope(
@@ -132,6 +143,33 @@ void main() {
 
     expect(find.text('Françoise Mattar'), findsOneWidget);
     expect(find.text('Add customer'), findsNothing);
+  });
+
+  testWidgets('a permission error is actionable and offers no retry', (tester) async {
+    await tester.pumpWidget(_host(
+      overrides: [
+        clientRepoProvider.overrideWithValue(
+            _ThrowingClientRepo(const PostgrestException(message: 'denied', code: '42501'))),
+      ],
+      child: const AddCustomerSheet(),
+    ));
+    await tester.pumpAndSettle();
+    // RLS denial → tells them to sign in as staff; retrying wouldn't help, so no retry.
+    expect(find.textContaining('staff account'), findsOneWidget);
+    expect(find.text('Try again'), findsNothing);
+  });
+
+  testWidgets('a network error shows connection copy and a retry', (tester) async {
+    await tester.pumpWidget(_host(
+      overrides: [
+        clientRepoProvider
+            .overrideWithValue(_ThrowingClientRepo(Exception('SocketException: host lookup'))),
+      ],
+      child: const AddCustomerSheet(),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('internet connection'), findsOneWidget);
+    expect(find.text('Try again'), findsOneWidget);
   });
 
   testWidgets('quick-add without a name shows an actionable message', (tester) async {

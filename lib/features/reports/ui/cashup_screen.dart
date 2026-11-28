@@ -165,7 +165,7 @@ class _Body extends StatelessWidget {
         else ...<Widget>[
           for (final e in cashUp.takingsByMethod.entries) _methodRow(e.key, e.value),
           const SizedBox(height: 12),
-          _TakingsBar(byMethod: cashUp.takingsByMethod, total: cashUp.grossTakingsCents),
+          _TakingsBar(byMethod: cashUp.takingsByMethod),
         ],
         const SizedBox(height: 18),
         _sectionLabel('COMMISSION BY STAFF'),
@@ -290,9 +290,8 @@ class _Body extends StatelessWidget {
 
 /// Proportional split of takings across methods (p.8, bottom-left bar).
 class _TakingsBar extends StatelessWidget {
-  const _TakingsBar({required this.byMethod, required this.total});
+  const _TakingsBar({required this.byMethod});
   final Map<String, int> byMethod;
-  final int total;
 
   static const Map<String, Color> _colors = <String, Color>{
     'cash': _pink,
@@ -302,6 +301,9 @@ class _TakingsBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Size each segment against the sum of the shown method amounts so the bar is
+    // always proportional (a separate gross figure could differ and skew it).
+    final total = byMethod.values.fold<int>(0, (s, v) => s + v);
     if (total <= 0) return const SizedBox.shrink();
     return ClipRRect(
       borderRadius: BorderRadius.circular(6),

@@ -33,4 +33,26 @@ void main() {
     expect(find.text('Password'), findsOneWidget);
     expect(find.text('Sign in'), findsOneWidget);
   });
+
+  testWidgets('password visibility toggles', (WidgetTester tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: <Override>[sessionProvider.overrideWith(_FakeSession.new)],
+      child: const MaterialApp(home: LoginScreen()),
+    ));
+    // Obscured by default -> offers "Show password"; tapping flips to "Hide password".
+    expect(find.byTooltip('Show password'), findsOneWidget);
+    await tester.tap(find.byTooltip('Show password'));
+    await tester.pump();
+    expect(find.byTooltip('Hide password'), findsOneWidget);
+  });
+
+  testWidgets('forgot password surfaces guidance (a snackbar)', (WidgetTester tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: <Override>[sessionProvider.overrideWith(_FakeSession.new)],
+      child: const MaterialApp(home: LoginScreen()),
+    ));
+    await tester.tap(find.text('Forgot password?'));
+    await tester.pump(); // let the SnackBar animate in
+    expect(find.byType(SnackBar), findsOneWidget);
+  });
 }
