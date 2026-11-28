@@ -166,6 +166,23 @@ class _PaymentArea extends ConsumerWidget {
           children: <Widget>[
             _row('Subtotal', draft.subtotalCents, muted: true),
             if (draft.discountCents > 0) _row('Discount', -draft.discountCents, muted: true),
+            if (draft.ticketDiscountCents > 0)
+              _row('Ticket discount', -draft.ticketDiscountCents, muted: true),
+            if (!draft.isEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => _editTicketDiscount(context, ref),
+                  style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  child: Text(
+                    draft.ticketDiscountCents > 0 ? 'Edit ticket discount' : 'Add ticket discount',
+                    style: const TextStyle(color: _pink, fontWeight: FontWeight.w700, fontSize: 12.5),
+                  ),
+                ),
+              ),
             const SizedBox(height: 4),
             _row('Total', total, big: true, color: _pink),
             if (!draft.isEmpty) ...<Widget>[
@@ -250,6 +267,19 @@ class _PaymentArea extends ConsumerWidget {
         style: const TextStyle(color: _ink, fontWeight: FontWeight.w800, fontSize: 16));
   }
 
+  Future<void> _editTicketDiscount(BuildContext context, WidgetRef ref) async {
+    final draft = ref.read(checkoutDraftProvider);
+    final result = await showLineDiscountDialog(
+      context,
+      lineName: 'the ticket',
+      grossCents: draft.preTicketTotalCents,
+      currentDiscountCents: draft.ticketDiscountCents,
+    );
+    if (result != null) {
+      ref.read(checkoutDraftProvider.notifier).setTicketDiscount(result);
+    }
+  }
+
   void _takePayment(BuildContext context, WidgetRef ref) {
     final draft = ref.read(checkoutDraftProvider);
     final pay = ref.read(paymentDraftProvider);
@@ -265,6 +295,7 @@ class _PaymentArea extends ConsumerWidget {
       openedByStaffId: active!.id,
       totalCents: draft.totalCents,
       clientId: draft.client?.id,
+      ticketDiscountCents: draft.ticketDiscountCents,
       lines: <PayLine>[
         for (final l in draft.lines)
           PayLine(
